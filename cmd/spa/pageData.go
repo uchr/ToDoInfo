@@ -5,8 +5,9 @@ import (
 )
 
 type ListAge struct {
-	Title string
-	Age   int
+	Title      string
+	Age        int
+	OldestTask string
 }
 
 type TaskPageData struct {
@@ -24,12 +25,16 @@ type PageData struct {
 	RottenTasks []TaskPageData
 }
 
-func GetPageData(listAges todo.ListAges, oldestTasks []todo.TaskRottennessInfo, rottenTasks []todo.TaskRottennessInfo) PageData {
+func GetPageData(listAges todo.ListAges, oldestTasks []todo.TaskRottennessInfo, rottenTasks []todo.TaskRottennessInfo, oldestTaskForLists map[string]string) PageData {
 	pageData := PageData{}
 
 	pageData.TotalAge = listAges.TotalAge
 	for _, listAge := range listAges.Ages {
-		pageData.ListAges = append(pageData.ListAges, ListAge{listAge.Title, listAge.Age})
+		pageData.ListAges = append(pageData.ListAges, ListAge{
+			Title:      listAge.Title,
+			Age:        listAge.Age,
+			OldestTask: oldestTaskForLists[listAge.Title],
+		})
 	}
 
 	for _, task := range oldestTasks {

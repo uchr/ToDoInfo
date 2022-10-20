@@ -99,6 +99,27 @@ func (l *TaskLists) GetTopOldestTasks(n int) []TaskRottennessInfo {
 	return tasks[:n]
 }
 
+func (l *TaskLists) GetOldestTaskForList() map[string]string {
+	result := make(map[string]string)
+	for _, taskList := range l.Lists {
+		if len(taskList.Tasks) == 0 {
+			result[taskList.Name] = ""
+		}
+
+		maxAge := 0
+		oldestTask := ""
+		for _, task := range taskList.Tasks {
+			age := getTaskAge(task)
+			if age >= maxAge {
+				maxAge = age
+				oldestTask = task.Title
+			}
+		}
+		result[taskList.Name] = oldestTask
+	}
+	return result
+}
+
 func (l *TaskLists) GetRottenTasks(minLevel TaskRottenness) []TaskRottennessInfo {
 	tasks := l.sortTasks()
 	if minLevel == FreshTaskRottenness {

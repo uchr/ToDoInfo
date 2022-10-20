@@ -38,8 +38,9 @@ func main() {
 		listAges := taskLists.GetListAges()
 		oldestTasks := taskLists.GetTopOldestTasks(5)
 		rottenTasks := taskLists.GetRottenTasks(todo.TiredTaskRottenness)
+		oldestTaskForList := taskLists.GetOldestTaskForList()
 
-		pageData := GetPageData(listAges, oldestTasks, rottenTasks)
+		pageData := GetPageData(listAges, oldestTasks, rottenTasks, oldestTaskForList)
 
 		err = tmpl.Execute(w, pageData)
 		if err != nil {
