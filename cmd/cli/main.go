@@ -32,11 +32,11 @@ func main() {
 		return
 	}
 
-	daysums := taskLists.GetDaysum()
-	fmt.Println("# Daysums")
-	fmt.Println("Overall:", daysums.Overall, "days")
-	for listName, listDaysum := range daysums.ListDaysums {
-		fmt.Println(fmt.Sprintf(" - %s: %d days", listName, listDaysum))
+	listAges := taskLists.GetListAges()
+	fmt.Println("# List Ages")
+	fmt.Println("Total age:", listAges.TotalAge, "days")
+	for _, listAge := range listAges.Ages {
+		fmt.Println(fmt.Sprintf(" - %s: %d days", listAge.Title, listAge.Age))
 	}
 
 	fmt.Println("# Oldest Tasks")

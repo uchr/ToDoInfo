@@ -9,9 +9,14 @@ const (
 	FreshTaskRottenness
 )
 
-type Daysums struct {
-	Overall     int
-	ListDaysums map[string]int
+type ListAge struct {
+	Age   int
+	Title string
+}
+
+type ListAges struct {
+	TotalAge int
+	Ages     []ListAge
 }
 
 type TaskRottennessInfo struct {

@@ -65,24 +65,33 @@ func (l *TaskLists) sortTasks() []TaskRottennessInfo {
 	return result
 }
 
-func (l *TaskLists) GetDaysum() Daysums {
-	daysums := Daysums{}
-	daysums.ListDaysums = make(map[string]int)
+func (l *TaskLists) GetListAges() ListAges {
+	sum := 0
+	ages := make(map[string]int)
 
 	for _, taskList := range l.Lists {
 		if taskList.WellknownListName == "defaultList" {
 			continue
 		}
 
-		daysums.ListDaysums[taskList.Name] = 0
+		ages[taskList.Name] = 0
 		for _, task := range taskList.Tasks {
 			age := getTaskAge(task)
-			daysums.Overall += age
-			daysums.ListDaysums[taskList.Name] += age
+			sum += age
+			ages[taskList.Name] += age
 		}
 	}
 
-	return daysums
+	listAges := ListAges{TotalAge: sum}
+	for listName, listAge := range ages {
+		listAges.Ages = append(listAges.Ages, ListAge{Title: listName, Age: listAge})
+	}
+
+	sort.Slice(listAges.Ages, func(i, j int) bool {
+		return listAges.Ages[i].Age > listAges.Ages[j].Age
+	})
+
+	return listAges
 }
 
 func (l *TaskLists) GetTopOldestTasks(n int) []TaskRottennessInfo {

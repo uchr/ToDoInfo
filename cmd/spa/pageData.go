@@ -4,9 +4,9 @@ import (
 	"ToDoInfo/internal/todo"
 )
 
-type ListDaysum struct {
-	Title  string
-	Daysum int
+type ListAge struct {
+	Title string
+	Age   int
 }
 
 type TaskPageData struct {
@@ -17,19 +17,19 @@ type TaskPageData struct {
 }
 
 type PageData struct {
-	OverallDaysum int
-	ListDaysums   []ListDaysum
+	TotalAge int
+	ListAges []ListAge
 
 	OldestTasks []TaskPageData
 	RottenTasks []TaskPageData
 }
 
-func GetPageData(daysums todo.Daysums, oldestTasks []todo.TaskRottennessInfo, rottenTasks []todo.TaskRottennessInfo) PageData {
+func GetPageData(listAges todo.ListAges, oldestTasks []todo.TaskRottennessInfo, rottenTasks []todo.TaskRottennessInfo) PageData {
 	pageData := PageData{}
 
-	pageData.OverallDaysum = daysums.Overall
-	for listName, listDaysum := range daysums.ListDaysums {
-		pageData.ListDaysums = append(pageData.ListDaysums, ListDaysum{listName, listDaysum})
+	pageData.TotalAge = listAges.TotalAge
+	for _, listAge := range listAges.Ages {
+		pageData.ListAges = append(pageData.ListAges, ListAge{listAge.Title, listAge.Age})
 	}
 
 	for _, task := range oldestTasks {
