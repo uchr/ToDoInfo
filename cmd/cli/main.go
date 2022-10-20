@@ -46,8 +46,8 @@ func main() {
 	}
 
 	fmt.Println("# Tired Tasks")
-	zombieTasks := taskLists.GetRottennessTasks(todo.TiredTaskRottenness)
-	for _, task := range zombieTasks {
+	rottenTasks := taskLists.GetRottenTasks(todo.TiredTaskRottenness)
+	for _, task := range rottenTasks {
 		fmt.Println(fmt.Sprintf(" - %s %s:%s (%d days)", task.Rottenness.String(), task.TaskList, task.TaskName, task.Age))
 	}
 }

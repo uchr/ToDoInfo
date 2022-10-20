@@ -36,7 +36,7 @@ func getTaskRottenness(age int) TaskRottenness {
 
 func getTaskAge(task Task) int {
 	currentTime := time.Now()
-	delta := currentTime.Sub(task.LastModifiedDateTime)
+	delta := currentTime.Sub(task.CreatedDateTime)
 	return int(delta.Hours() / 24)
 }
 
@@ -90,7 +90,7 @@ func (l *TaskLists) GetTopOldestTasks(n int) []TaskRottennessInfo {
 	return tasks[:n]
 }
 
-func (l *TaskLists) GetRottennessTasks(minLevel TaskRottenness) []TaskRottennessInfo {
+func (l *TaskLists) GetRottenTasks(minLevel TaskRottenness) []TaskRottennessInfo {
 	tasks := l.sortTasks()
 	if minLevel == FreshTaskRottenness {
 		return tasks
