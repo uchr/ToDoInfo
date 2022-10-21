@@ -48,7 +48,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	}
 
 	var err error
-	t.CreatedDateTime, err = time.Parse(layout, aliasValue.LastModifiedDateTime)
+	t.CreatedDateTime, err = time.Parse(layout, aliasValue.CreatedDateTime)
 	if err != nil {
 		return err
 	}
