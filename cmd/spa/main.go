@@ -1,14 +1,10 @@
 package main
 
 import (
-	"html/template"
-	"net/http"
-
 	"ToDoInfo/internal/config"
 	"ToDoInfo/internal/log"
 	"ToDoInfo/internal/login"
-	"ToDoInfo/internal/todo"
-	"ToDoInfo/internal/todoparser"
+	"ToDoInfo/internal/servers"
 )
 
 func main() {
@@ -27,35 +23,15 @@ func main() {
 	}
 	log.Debug(token)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		tmpl, err := template.ParseFiles("web/template/index.html")
-
-		taskLists, err := todoparser.ParseTasks(token)
-		if err != nil {
-			log.Error(err)
-		}
-
-		listAges := taskLists.GetListAges()
-		oldestTasks := taskLists.GetTopOldestTasks(5)
-		rottenTasks := taskLists.GetRottenTasks(todo.TiredTaskRottenness)
-		oldestTaskForList := taskLists.GetOldestTaskForList()
-
-		pageData := GetPageData(listAges, oldestTasks, rottenTasks, oldestTaskForList)
-
-		err = tmpl.Execute(w, pageData)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-	})
-
-	fs := http.FileServer(http.Dir("web/static/"))
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
-
-	err = http.ListenAndServe(":80", nil)
+	server, err := servers.New(token)
 	if err != nil {
 		log.Error(err)
 		return
 	}
 
+	err = server.Run()
+	if err != nil {
+		log.Error(err)
+		return
+	}
 }

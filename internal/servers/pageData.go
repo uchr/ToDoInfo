@@ -1,4 +1,4 @@
-package main
+package servers
 
 import (
 	"ToDoInfo/internal/todo"
