@@ -35,8 +35,12 @@ func getTaskRottenness(age int) TaskRottenness {
 }
 
 func getTaskAge(task Task) int {
+	taskTime := task.CreatedDateTime
+	if task.Title == "Daily" || task.Title == "Weekly" {
+		taskTime = task.LastModifiedDateTime
+	}
 	currentTime := time.Now()
-	delta := currentTime.Sub(task.CreatedDateTime)
+	delta := currentTime.Sub(taskTime)
 	return int(delta.Hours() / 24)
 }
 
