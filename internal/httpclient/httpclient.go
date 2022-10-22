@@ -30,7 +30,25 @@ func GetResponseError(data []byte) error {
 	return &ResponseError{errInfo.Error.Code}
 }
 
-func PostRequest(requestUrl string, values url.Values) ([]byte, error) {
+func GetAuthError(data []byte) error {
+	type errorInfo struct {
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
+	}
+
+	errInfo := errorInfo{}
+	err := json.Unmarshal(data, &errInfo)
+	if err != nil {
+		return err
+	}
+	if errInfo.Error == "" {
+		return nil
+	}
+
+	return &ResponseError{errInfo.ErrorDescription}
+}
+
+func Post(requestUrl string, values url.Values) ([]byte, error) {
 	req, err := http.NewRequest("POST", requestUrl, strings.NewReader(values.Encode()))
 	if err != nil {
 		return nil, err

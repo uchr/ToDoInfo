@@ -35,8 +35,12 @@ func getTaskRottenness(age int) TaskRottenness {
 }
 
 func getTaskAge(task Task) int {
+	taskTime := task.CreatedDateTime
+	if task.Title == "Daily" || task.Title == "Weekly" {
+		taskTime = task.LastModifiedDateTime
+	}
 	currentTime := time.Now()
-	delta := currentTime.Sub(task.LastModifiedDateTime)
+	delta := currentTime.Sub(taskTime)
 	return int(delta.Hours() / 24)
 }
 
@@ -65,24 +69,33 @@ func (l *TaskLists) sortTasks() []TaskRottennessInfo {
 	return result
 }
 
-func (l *TaskLists) GetDaysum() Daysums {
-	daysums := Daysums{}
-	daysums.ListDaysums = make(map[string]int)
+func (l *TaskLists) GetListAges() ListAges {
+	sum := 0
+	ages := make(map[string]int)
 
 	for _, taskList := range l.Lists {
 		if taskList.WellknownListName == "defaultList" {
 			continue
 		}
 
-		daysums.ListDaysums[taskList.Name] = 0
+		ages[taskList.Name] = 0
 		for _, task := range taskList.Tasks {
 			age := getTaskAge(task)
-			daysums.Overall += age
-			daysums.ListDaysums[taskList.Name] += age
+			sum += age
+			ages[taskList.Name] += age
 		}
 	}
 
-	return daysums
+	listAges := ListAges{TotalAge: sum}
+	for listName, listAge := range ages {
+		listAges.Ages = append(listAges.Ages, ListAge{Title: listName, Age: listAge})
+	}
+
+	sort.Slice(listAges.Ages, func(i, j int) bool {
+		return listAges.Ages[i].Age > listAges.Ages[j].Age
+	})
+
+	return listAges
 }
 
 func (l *TaskLists) GetTopOldestTasks(n int) []TaskRottennessInfo {
@@ -90,7 +103,28 @@ func (l *TaskLists) GetTopOldestTasks(n int) []TaskRottennessInfo {
 	return tasks[:n]
 }
 
-func (l *TaskLists) GetRottennessTasks(minLevel TaskRottenness) []TaskRottennessInfo {
+func (l *TaskLists) GetOldestTaskForList() map[string]string {
+	result := make(map[string]string)
+	for _, taskList := range l.Lists {
+		if len(taskList.Tasks) == 0 {
+			result[taskList.Name] = ""
+		}
+
+		maxAge := 0
+		oldestTask := ""
+		for _, task := range taskList.Tasks {
+			age := getTaskAge(task)
+			if age >= maxAge {
+				maxAge = age
+				oldestTask = task.Title
+			}
+		}
+		result[taskList.Name] = oldestTask
+	}
+	return result
+}
+
+func (l *TaskLists) GetRottenTasks(minLevel TaskRottenness) []TaskRottennessInfo {
 	tasks := l.sortTasks()
 	if minLevel == FreshTaskRottenness {
 		return tasks

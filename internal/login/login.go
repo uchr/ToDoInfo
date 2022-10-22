@@ -1,13 +1,11 @@
 package login
 
 import (
-	"bufio"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/url"
-	"os"
+	"time"
 
+	"ToDoInfo/internal/config"
 	"ToDoInfo/internal/httpclient"
 )
 
@@ -19,145 +17,48 @@ type authData struct {
 
 type tokenData struct {
 	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
 }
 
 const (
-	baseRequestUrl = "https://login.microsoftonline.com/consumers/oauth2/v2.0"
+	baseRequestUrl  = "https://login.microsoftonline.com/consumers/oauth2/v2.0"
+	authRequestUrl  = "/authorize"
+	tokenRequestUrl = "/token"
 )
 
-func authRequest(clientId string) (*authData, error) {
-	const authRequestUrl = "/devicecode"
-
-	values := url.Values{}
-	values.Add("client_id", clientId)
-	values.Add("scope", "User.Read Tasks.ReadWrite")
-
-	responseBody, err := httpclient.PostRequest(baseRequestUrl+authRequestUrl, values)
-	if err != nil {
-		return nil, err
-	}
-
-	err = httpclient.GetResponseError(responseBody)
-	if err != nil {
-		return nil, err
-	}
-
-	auth := authData{}
-	err = json.Unmarshal(responseBody, &auth)
-	if err != nil {
-		return nil, err
-	}
-
-	return &auth, nil
+func GetAuthRequest(cfg config.Config) string {
+	v := url.Values{}
+	v.Add("client_id", cfg.ClientId)
+	v.Add("redirect_uri", cfg.RedirectURI)
+	v.Add("response_type", "code")
+	v.Add("response_mode", "query")
+	v.Add("scope", "User.Read Tasks.ReadWrite")
+	return baseRequestUrl + authRequestUrl + "?" + v.Encode()
 }
 
-func tokenRequest(clientId string, deviceCode string) (string, error) {
-	const tokenRequestUrl = "/token"
-
+func Auth(cfg config.Config, code string) (string, time.Duration, error) {
 	values := url.Values{}
-	values.Add("client_id", clientId)
-	values.Add("code", deviceCode)
-	values.Add("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+	values.Add("client_id", cfg.ClientId)
+	values.Add("client_secret", cfg.ClientSecret)
+	values.Add("code", code)
+	values.Add("redirect_uri", cfg.RedirectURI)
+	values.Add("grant_type", "authorization_code")
 
-	responseBody, err := httpclient.PostRequest(baseRequestUrl+tokenRequestUrl, values)
+	body, err := httpclient.Post(baseRequestUrl+tokenRequestUrl, values)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
-	err = httpclient.GetResponseError(responseBody)
+	err = httpclient.GetAuthError(body)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	token := tokenData{}
-	err = json.Unmarshal(responseBody, &token)
+	err = json.Unmarshal(body, &token)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
-	return token.AccessToken, nil
-}
-
-func checkTokenExpiration(token string) (bool, error) {
-	const checkUrl = "https://graph.microsoft.com/v1.0/me"
-	if token == "" {
-		return true, nil
-	}
-
-	responseBody, err := httpclient.GetRequest(checkUrl, token)
-	if err != nil {
-		return false, err
-	}
-
-	err = httpclient.GetResponseError(responseBody)
-	if err != nil {
-		responseErr := &httpclient.ResponseError{}
-		if errors.As(err, &responseErr); responseErr.Code == httpclient.InvalidAuthenticationTokenCode {
-			return true, nil
-		}
-		return false, err
-	}
-
-	return false, nil
-}
-
-func loadToken() (string, error) {
-	data, err := os.ReadFile(".cache")
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-
-		return "", err
-	}
-
-	return string(data), nil
-}
-
-func storeToken(token string) error {
-	err := os.WriteFile(".cache", []byte(token), 0644)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func Login(clientId string) (string, error) {
-	token, err := loadToken()
-	if err != nil {
-		return "", err
-	}
-
-	isExpired, err := checkTokenExpiration(token)
-	if err != nil {
-		return "", err
-	}
-	if !isExpired {
-		return token, nil
-	}
-
-	auth, err := authRequest(clientId)
-	if err != nil {
-		return "", err
-	}
-
-	fmt.Println(fmt.Sprintf("To sign in, use a web browser to open the page %s and enter the code %s to authenticate.",
-		auth.VerificationUri, auth.UserCode))
-	fmt.Println("Press 'Enter' after login to continue...")
-	_, err = bufio.NewReader(os.Stdin).ReadBytes('\n')
-	if err != nil {
-		return "", err
-	}
-
-	token, err = tokenRequest(clientId, auth.DeviceCode)
-	if err != nil {
-		return "", err
-	}
-
-	err = storeToken(token)
-	if err != nil {
-		return "", err
-	}
-
-	return token, nil
+	return token.AccessToken, time.Duration(token.ExpiresIn * int(time.Second)), nil
 }

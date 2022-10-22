@@ -1,0 +1,30 @@
+body {
+    font-family: 'Nunito Sans', sans-serif;
+    background-color: #e63946;
+    font-size: 18px;
+}
+
+.column {
+    background-color: #FFEDDF;
+    border-radius: 25px;
+}
+
+.age {
+    font-family: 'Nunito', sans-serif;
+    font-weight: bold;
+}
+
+h1, h2 {
+    font-family: 'Nunito', sans-serif;
+}
+
+table, tbody, tr, th, td{
+    background-color: #00000000 !important;
+}
+
+.table td, .table th {
+	border: 1px solid #203239;
+	border-width: 0 0 1px;
+	padding: .5em .75em;
+	vertical-align: top;
+}
