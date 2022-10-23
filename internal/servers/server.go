@@ -2,29 +2,34 @@ package servers
 
 import (
 	"context"
-	"github.com/gorilla/sessions"
 	"html/template"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gorilla/sessions"
+
 	"ToDoInfo/internal/config"
 	"ToDoInfo/internal/log"
 	"ToDoInfo/internal/login"
 	"ToDoInfo/internal/todo"
-	"ToDoInfo/internal/todoparser"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
+
+type TaskProvider interface {
+	GetTasks(token string) (*todo.TaskLists, error)
+}
 
 type Server struct {
 	indexTemplate *template.Template
 	cfg           config.Config
 	store         *sessions.CookieStore
+	taskProvider  TaskProvider
 }
 
-func New(cfg config.Config) (*Server, error) {
-	s := Server{cfg: cfg}
+func New(cfg config.Config, taskProvider TaskProvider) (*Server, error) {
+	s := Server{cfg: cfg, taskProvider: taskProvider}
 
 	var err error
 	s.indexTemplate, err = template.ParseFiles("web/template/index.html")
@@ -60,7 +65,7 @@ func (s *Server) Run() error {
 func (s *Server) indexHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.Context().Value("token").(string)
-		taskLists, err := todoparser.ParseTasks(token)
+		taskLists, err := s.taskProvider.GetTasks(token)
 
 		if err != nil {
 			log.Error(err)
