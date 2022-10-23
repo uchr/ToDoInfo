@@ -2,7 +2,7 @@
 
 ![](assets/example.png)
 
-**ToDo info** helps you find old tasks from Microsoft ToDo.
+**ToDo Info** helps you find old tasks from Microsoft ToDo.
 
 It calculates the age of tasks (measure in days) and sets a category for every task:
 * 😊 - new task
