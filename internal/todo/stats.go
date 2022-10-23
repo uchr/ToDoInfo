@@ -100,7 +100,13 @@ func (l *TaskLists) GetListAges() ListAges {
 
 func (l *TaskLists) GetTopOldestTasks(n int) []TaskRottennessInfo {
 	tasks := l.sortTasks()
-	return tasks[:n]
+
+	m := n
+	if m >= len(tasks) {
+		m = len(tasks)
+	}
+
+	return tasks[:m]
 }
 
 func (l *TaskLists) GetOldestTaskForList() map[string]string {
