@@ -1,4 +1,4 @@
-package todoparser
+package todoclient
 
 import (
 	"encoding/json"
@@ -24,7 +24,7 @@ func New() *TodoParser {
 	return &TodoParser{}
 }
 
-func (parser *TodoParser) parseTaskListInfos(token string) ([]taskListInfo, error) {
+func (parser *TodoParser) requestTaskListInfos(token string) ([]taskListInfo, error) {
 	responseBody, err := httpclient.GetRequest(baseRequestUrl, token)
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func (parser *TodoParser) parseTaskListInfos(token string) ([]taskListInfo, erro
 	return tl.Value, nil
 }
 
-func (parser *TodoParser) parseTaskList(token string, taskListId string) ([]todo.Task, error) {
+func (parser *TodoParser) requestTaskList(token string, taskListId string) ([]todo.Task, error) {
 	const taskListUrl = "tasks?$filter=status%20eq%20'notStarted'"
 	responseBody, err := httpclient.GetRequest(baseRequestUrl+fmt.Sprintf("/%s/", taskListId)+taskListUrl, token)
 	if err != nil {
@@ -73,14 +73,14 @@ func (parser *TodoParser) parseTaskList(token string, taskListId string) ([]todo
 }
 
 func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
-	taskListInfos, err := parser.parseTaskListInfos(token)
+	taskListInfos, err := parser.requestTaskListInfos(token)
 	if err != nil {
 		return nil, err
 	}
 
 	taskLists := make([]todo.TaskList, 0)
 	for _, info := range taskListInfos {
-		tasks, err := parser.parseTaskList(token, info.ID)
+		tasks, err := parser.requestTaskList(token, info.ID)
 		if err != nil {
 			return nil, err
 		}

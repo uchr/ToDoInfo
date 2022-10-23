@@ -4,7 +4,7 @@ import (
 	"ToDoInfo/internal/config"
 	"ToDoInfo/internal/log"
 	"ToDoInfo/internal/servers"
-	"ToDoInfo/internal/todoparser"
+	"ToDoInfo/internal/todoclient"
 )
 
 func main() {
@@ -16,7 +16,7 @@ func main() {
 	}
 	log.Debug(cfg.ClientId)
 
-	taskProvider := todoparser.New()
+	taskProvider := todoclient.New()
 
 	server, err := servers.New(*cfg, taskProvider)
 	if err != nil {
