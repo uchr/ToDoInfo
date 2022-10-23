@@ -1,6 +1,7 @@
 package servers
 
 import (
+	"ToDoInfo/internal/todometrics"
 	"context"
 	"html/template"
 	"net/http"
@@ -18,7 +19,7 @@ import (
 )
 
 type TaskProvider interface {
-	GetTasks(token string) (*todo.TaskLists, error)
+	GetTasks(token string) ([]todo.TaskList, error)
 }
 
 type Server struct {
@@ -72,12 +73,8 @@ func (s *Server) indexHandler() http.HandlerFunc {
 			return
 		}
 
-		listAges := taskLists.GetListAges()
-		oldestTasks := taskLists.GetTopOldestTasks(5)
-		rottenTasks := taskLists.GetRottenTasks(todo.TiredTaskRottenness)
-		oldestTaskForList := taskLists.GetOldestTaskForList()
-
-		pageData := GetPageData(listAges, oldestTasks, rottenTasks, oldestTaskForList)
+		metrics := todometrics.New(taskLists)
+		pageData := GetPageData(metrics)
 
 		err = s.indexTemplate.Execute(w, pageData)
 		if err != nil {

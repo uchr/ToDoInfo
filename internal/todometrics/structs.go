@@ -1,4 +1,6 @@
-package todo
+package todometrics
+
+import "ToDoInfo/internal/todo"
 
 type TaskRottenness int
 
@@ -7,6 +9,12 @@ const (
 	TiredTaskRottenness
 	RipeTaskRottenness
 	FreshTaskRottenness
+)
+
+const (
+	zombieTaskDay = 14
+	tiredTaskDay  = 7
+	ripeTaskDay   = 3
 )
 
 type ListAge struct {
@@ -26,16 +34,7 @@ type TaskRottennessInfo struct {
 	Rottenness TaskRottenness
 }
 
-func (r TaskRottenness) String() string {
-	switch r {
-	case ZombieTaskRottenness:
-		return "🤢"
-	case TiredTaskRottenness:
-		return "🥱"
-	case RipeTaskRottenness:
-		return "😏"
-	case FreshTaskRottenness:
-		return "😊"
-	}
-	return "❓"
+type Metrics struct {
+	lists       []todo.TaskList
+	sortedTasks []TaskRottennessInfo
 }

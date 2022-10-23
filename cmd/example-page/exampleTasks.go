@@ -13,8 +13,8 @@ func getDate(dayBefore int) time.Time {
 	return time.Now().Add(d)
 }
 
-func (e ExampleTasks) GetTasks(token string) (*todo.TaskLists, error) {
-	t := todo.TaskLists{Lists: []todo.TaskList{
+func (e ExampleTasks) GetTasks(token string) ([]todo.TaskList, error) {
+	t := []todo.TaskList{
 		{
 			Name: "🏠Home",
 			Tasks: []todo.Task{
@@ -55,7 +55,7 @@ func (e ExampleTasks) GetTasks(token string) (*todo.TaskLists, error) {
 				},
 			},
 		},
-	}}
+	}
 
-	return &t, nil
+	return t, nil
 }

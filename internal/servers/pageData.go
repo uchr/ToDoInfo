@@ -1,7 +1,7 @@
 package servers
 
 import (
-	"ToDoInfo/internal/todo"
+	"ToDoInfo/internal/todometrics"
 )
 
 type ListAge struct {
@@ -25,8 +25,13 @@ type PageData struct {
 	RottenTasks []TaskPageData
 }
 
-func GetPageData(listAges todo.ListAges, oldestTasks []todo.TaskRottennessInfo, rottenTasks []todo.TaskRottennessInfo, oldestTaskForLists map[string]string) PageData {
+func GetPageData(metrics *todometrics.Metrics) PageData {
 	pageData := PageData{}
+
+	listAges := metrics.GetListAges()
+	oldestTasks := metrics.GetTopOldestTasks(5)
+	rottenTasks := metrics.GetRottenTasks(todometrics.TiredTaskRottenness)
+	oldestTaskForLists := metrics.GetOldestTaskForList()
 
 	pageData.TotalAge = listAges.TotalAge
 	for _, listAge := range listAges.Ages {

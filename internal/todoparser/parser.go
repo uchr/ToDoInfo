@@ -72,7 +72,7 @@ func (parser *TodoParser) parseTaskList(token string, taskListId string) ([]todo
 	return tl.Value, nil
 }
 
-func (parser *TodoParser) GetTasks(token string) (*todo.TaskLists, error) {
+func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
 	taskListInfos, err := parser.parseTaskListInfos(token)
 	if err != nil {
 		return nil, err
@@ -93,5 +93,5 @@ func (parser *TodoParser) GetTasks(token string) (*todo.TaskLists, error) {
 		taskLists = append(taskLists, taskList)
 	}
 
-	return &todo.TaskLists{Lists: taskLists}, nil
+	return taskLists, nil
 }
