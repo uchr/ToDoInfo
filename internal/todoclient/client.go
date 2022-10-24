@@ -3,6 +3,7 @@ package todoclient
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"ToDoInfo/internal/httpclient"
 	"ToDoInfo/internal/todo"
@@ -78,20 +79,57 @@ func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
 		return nil, err
 	}
 
-	taskLists := make([]todo.TaskList, 0)
-	for _, info := range taskListInfos {
-		tasks, err := parser.requestTaskList(token, info.ID)
-		if err != nil {
-			return nil, err
-		}
+	taskListCh := make(chan todo.TaskList)
+	errorCh := make(chan error)
+	wg := sync.WaitGroup{}
+	for i := range taskListInfos {
+		wg.Add(1)
+		go func(info taskListInfo) {
+			defer wg.Done()
+			tasks, err := parser.requestTaskList(token, info.ID)
+			if err != nil {
+				errorCh <- err
+				return
+			}
 
-		taskList := todo.TaskList{
-			Name:              info.DisplayName,
-			WellknownListName: info.WellknownListName,
-			IsShared:          info.IsShared,
-			Tasks:             tasks}
-		taskLists = append(taskLists, taskList)
+			taskList := todo.TaskList{
+				Name:              info.DisplayName,
+				WellknownListName: info.WellknownListName,
+				IsShared:          info.IsShared,
+				Tasks:             tasks}
+			taskListCh <- taskList
+		}(taskListInfos[i])
 	}
 
-	return taskLists, nil
+	taskLists := make([]todo.TaskList, 0)
+	go func() {
+		for {
+			select {
+			case taskList, ok := <-taskListCh:
+				if !ok {
+					break
+				}
+				taskLists = append(taskLists, taskList)
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case inputErr, ok := <-errorCh:
+				if !ok {
+					break
+				}
+				err = inputErr
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	close(taskListCh)
+	close(errorCh)
+
+	return taskLists, err
 }
