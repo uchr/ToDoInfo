@@ -8,7 +8,7 @@ import (
 type Config struct {
 	ClientId     string `env:"CLIENT_ID,required"`
 	ClientSecret string `env:"CLIENT_SECRET,required"`
-	RedirectURI  string `env:"REDIRECT_URI,required"`
+	HostURI      string `env:"HOST_URI,required"`
 	SessionKey   string `env:"SESSION_KEY,required"`
 }
 

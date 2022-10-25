@@ -100,7 +100,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 				log.Error(err)
 				v := url.Values{}
 				v.Add("isAuth", "0")
-				http.Redirect(w, r, s.cfg.RedirectURI+"?"+v.Encode(), http.StatusMovedPermanently)
+				http.Redirect(w, r, s.cfg.HostURI+"?"+v.Encode(), http.StatusMovedPermanently)
 				return
 			}
 			session, err := s.store.Get(r, "auth-session")
@@ -118,7 +118,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
-			http.Redirect(w, r, s.cfg.RedirectURI, http.StatusMovedPermanently)
+			http.Redirect(w, r, s.cfg.HostURI, http.StatusMovedPermanently)
 			return
 		}
 
