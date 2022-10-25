@@ -28,7 +28,7 @@ func (l *Metrics) GetListAges() ListAges {
 	ages := make(map[string]int)
 
 	for _, taskList := range l.lists {
-		if taskList.WellknownListName == "defaultList" {
+		if taskList.WellknownListName == "defaultList" || taskList.Name == "Flagged Emails" {
 			continue
 		}
 
