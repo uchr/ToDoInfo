@@ -40,10 +40,10 @@ func getTaskAge(task todo.Task) int {
 	return int(delta.Hours() / 24)
 }
 
-func sortTasks(taskLists []todo.TaskList) []TaskRottennessInfo {
+func getSortedTasks(taskLists []todo.TaskList) []TaskRottennessInfo {
 	result := make([]TaskRottennessInfo, 0)
 	for _, taskList := range taskLists {
-		if taskList.WellknownListName == "defaultList" {
+		if taskList.WellknownListName == "defaultList" || taskList.Name == "Flagged Emails" {
 			continue
 		}
 

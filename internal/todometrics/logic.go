@@ -20,7 +20,7 @@ func (r TaskRottenness) String() string {
 }
 
 func New(taskLists []todo.TaskList) *Metrics {
-	return &Metrics{lists: taskLists, sortedTasks: sortTasks(taskLists)}
+	return &Metrics{lists: taskLists, sortedTasks: getSortedTasks(taskLists)}
 }
 
 func (l *Metrics) GetListAges() ListAges {
@@ -46,6 +46,9 @@ func (l *Metrics) GetListAges() ListAges {
 	}
 
 	sort.Slice(listAges.Ages, func(i, j int) bool {
+		if listAges.Ages[i].Age == listAges.Ages[j].Age {
+			return listAges.Ages[i].Title < listAges.Ages[j].Title
+		}
 		return listAges.Ages[i].Age > listAges.Ages[j].Age
 	})
 
