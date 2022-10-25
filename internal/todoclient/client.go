@@ -103,11 +103,12 @@ func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
 
 	taskLists := make([]todo.TaskList, 0)
 	go func() {
+	loop:
 		for {
 			select {
 			case taskList, ok := <-taskListCh:
 				if !ok {
-					break
+					break loop
 				}
 				taskLists = append(taskLists, taskList)
 			}
@@ -115,11 +116,12 @@ func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
 	}()
 
 	go func() {
+	loop:
 		for {
 			select {
 			case inputErr, ok := <-errorCh:
 				if !ok {
-					break
+					break loop
 				}
 				err = inputErr
 			}
