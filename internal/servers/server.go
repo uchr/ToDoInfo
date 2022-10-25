@@ -48,7 +48,7 @@ func (s *Server) Run() error {
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	r.Use(log.LoggerMiddleware())
 	r.Use(middleware.Recoverer)
 	r.Use(s.authMiddleware)
 

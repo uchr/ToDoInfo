@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/pkg/errors"
+
 	"ToDoInfo/internal/httpclient"
+	"ToDoInfo/internal/log"
 	"ToDoInfo/internal/todo"
 )
 
@@ -26,6 +29,8 @@ func New() *TodoParser {
 }
 
 func (parser *TodoParser) requestTaskListInfos(token string) ([]taskListInfo, error) {
+	log.Info("Request task list infos")
+
 	responseBody, err := httpclient.GetRequest(baseRequestUrl, token)
 	if err != nil {
 		return nil, err
@@ -37,7 +42,7 @@ func (parser *TodoParser) requestTaskListInfos(token string) ([]taskListInfo, er
 
 	err = httpclient.GetResponseError(responseBody)
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("request task lists error. %v", err)
 	}
 
 	tl := taskListResponse{}
@@ -50,6 +55,9 @@ func (parser *TodoParser) requestTaskListInfos(token string) ([]taskListInfo, er
 
 func (parser *TodoParser) requestTaskList(token string, taskListId string) ([]todo.Task, error) {
 	const taskListUrl = "tasks?$filter=status%20eq%20'notStarted'"
+
+	log.Info(fmt.Sprintf("Request tasks infos '%s'", taskListId))
+
 	responseBody, err := httpclient.GetRequest(baseRequestUrl+fmt.Sprintf("/%s/", taskListId)+taskListUrl, token)
 	if err != nil {
 		return nil, err
@@ -61,7 +69,7 @@ func (parser *TodoParser) requestTaskList(token string, taskListId string) ([]to
 
 	err = httpclient.GetResponseError(responseBody)
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("request tasks '%s' error. %v", taskListId, err)
 	}
 
 	tl := taskListResponse{}
@@ -80,7 +88,6 @@ func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
 	}
 
 	taskListCh := make(chan todo.TaskList)
-	errorCh := make(chan error)
 	wg := sync.WaitGroup{}
 	for i := range taskListInfos {
 		wg.Add(1)
@@ -88,7 +95,7 @@ func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
 			defer wg.Done()
 			tasks, err := parser.requestTaskList(token, info.ID)
 			if err != nil {
-				errorCh <- err
+				log.Error(err)
 				return
 			}
 
@@ -101,37 +108,25 @@ func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
 		}(taskListInfos[i])
 	}
 
-	taskLists := make([]todo.TaskList, 0)
+	outTaskListCh := make(chan []todo.TaskList)
 	go func() {
-	loop:
-		for {
-			select {
-			case taskList, ok := <-taskListCh:
-				if !ok {
-					break loop
-				}
-				taskLists = append(taskLists, taskList)
-			}
+		taskLists := make([]todo.TaskList, 0)
+		for taskList := range taskListCh {
+			taskLists = append(taskLists, taskList)
 		}
-	}()
-
-	go func() {
-	loop:
-		for {
-			select {
-			case inputErr, ok := <-errorCh:
-				if !ok {
-					break loop
-				}
-				err = inputErr
-			}
-		}
+		outTaskListCh <- taskLists
+		log.Info("End taskListCh channel")
 	}()
 
 	wg.Wait()
 
 	close(taskListCh)
-	close(errorCh)
+
+	taskLists := <-outTaskListCh
+
+	close(outTaskListCh)
+
+	log.Info("End func")
 
 	return taskLists, err
 }

@@ -10,6 +10,7 @@ type Config struct {
 	ClientSecret string `env:"CLIENT_SECRET,required"`
 	HostURI      string `env:"HOST_URI,required"`
 	SessionKey   string `env:"SESSION_KEY,required"`
+	LogFolder    string `env:"LOG_FOLDER,required"`
 }
 
 func New() (*Config, error) {

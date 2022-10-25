@@ -8,13 +8,13 @@ import (
 )
 
 func main() {
-	log.Init(log.InfoLevel)
 	cfg, err := config.New()
 	if err != nil {
 		log.Error(err)
 		return
 	}
-	log.Debug(cfg.ClientId)
+
+	log.Init(log.InfoLevel, cfg.LogFolder)
 
 	taskProvider := todoclient.New()
 
