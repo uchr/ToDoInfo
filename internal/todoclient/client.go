@@ -29,8 +29,6 @@ func New() *TodoParser {
 }
 
 func (parser *TodoParser) requestTaskListInfos(token string) ([]taskListInfo, error) {
-	log.Info("Request task list infos")
-
 	responseBody, err := httpclient.GetRequest(baseRequestUrl, token)
 	if err != nil {
 		return nil, err
@@ -56,7 +54,7 @@ func (parser *TodoParser) requestTaskListInfos(token string) ([]taskListInfo, er
 func (parser *TodoParser) requestTaskList(token string, taskListId string) ([]todo.Task, error) {
 	const taskListUrl = "tasks?$filter=status%20eq%20'notStarted'"
 
-	log.Info(fmt.Sprintf("Request tasks infos '%s'", taskListId))
+	log.Debug(fmt.Sprintf("Request tasks infos '%s'", taskListId))
 
 	responseBody, err := httpclient.GetRequest(baseRequestUrl+fmt.Sprintf("/%s/", taskListId)+taskListUrl, token)
 	if err != nil {
@@ -82,6 +80,8 @@ func (parser *TodoParser) requestTaskList(token string, taskListId string) ([]to
 }
 
 func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
+	log.Info("Request task lists")
+
 	taskListInfos, err := parser.requestTaskListInfos(token)
 	if err != nil {
 		return nil, err
@@ -115,18 +115,12 @@ func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
 			taskLists = append(taskLists, taskList)
 		}
 		outTaskListCh <- taskLists
-		log.Info("End taskListCh channel")
 	}()
 
 	wg.Wait()
-
 	close(taskListCh)
-
 	taskLists := <-outTaskListCh
-
 	close(outTaskListCh)
-
-	log.Info("End func")
 
 	return taskLists, err
 }
