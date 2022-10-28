@@ -1,8 +1,9 @@
 package todometrics
 
 import (
-	"ToDoInfo/internal/todo"
 	"sort"
+
+	"ToDoInfo/internal/todo"
 )
 
 func (r TaskRottenness) String() string {
@@ -28,10 +29,6 @@ func (l *Metrics) GetListAges() ListAges {
 	ages := make(map[string]int)
 
 	for _, taskList := range l.lists {
-		if taskList.WellknownListName == "defaultList" || taskList.Name == "Flagged Emails" {
-			continue
-		}
-
 		ages[taskList.Name] = 0
 		for _, task := range taskList.Tasks {
 			age := getTaskAge(task)

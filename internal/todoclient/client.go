@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -87,40 +88,76 @@ func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
 		return nil, err
 	}
 
-	taskListCh := make(chan todo.TaskList)
-	wg := sync.WaitGroup{}
-	for i := range taskListInfos {
-		wg.Add(1)
-		go func(info taskListInfo) {
-			defer wg.Done()
-			tasks, err := parser.requestTaskList(token, info.ID)
-			if err != nil {
-				log.Error(err)
-				return
-			}
-
-			taskList := todo.TaskList{
-				Name:              info.DisplayName,
-				WellknownListName: info.WellknownListName,
-				IsShared:          info.IsShared,
-				Tasks:             tasks}
-			taskListCh <- taskList
-		}(taskListInfos[i])
-	}
-
-	outTaskListCh := make(chan []todo.TaskList)
-	go func() {
-		taskLists := make([]todo.TaskList, 0)
-		for taskList := range taskListCh {
-			taskLists = append(taskLists, taskList)
-		}
-		outTaskListCh <- taskLists
-	}()
-
-	wg.Wait()
-	close(taskListCh)
-	taskLists := <-outTaskListCh
-	close(outTaskListCh)
+	taskLists, err := parser.getListInfos(token, taskListInfos)
 
 	return taskLists, err
+}
+
+func (parser *TodoParser) getListInfos(token string, taskListInfos []taskListInfo) ([]todo.TaskList, error) {
+	const maxRequestForSecond = 4 // Max number of request to MS TODO
+
+	outputCh := make(chan taskListProcessingResult)
+	go func() {
+		wg := sync.WaitGroup{}
+		counter := 0
+		for _, info := range taskListInfos {
+			if info.WellknownListName != "none" {
+				continue
+			}
+
+			if counter >= maxRequestForSecond {
+				time.Sleep(time.Second)
+				counter = 0
+			}
+
+			wg.Add(1)
+			go func(info taskListInfo) {
+				defer wg.Done()
+				parser.processTaskListInfo(token, info, outputCh)
+			}(info)
+
+			counter++
+		}
+
+		wg.Wait()
+
+		close(outputCh)
+	}()
+
+	var err error
+	var taskLists []todo.TaskList
+	for processingResult := range outputCh {
+		if processingResult.err != nil {
+			err = processingResult.err
+			continue
+		}
+		if err != nil {
+			continue
+		}
+		taskLists = append(taskLists, processingResult.taskList)
+	}
+
+	return taskLists, err
+}
+
+type taskListProcessingResult struct {
+	taskList todo.TaskList
+	err      error
+}
+
+func (parser *TodoParser) processTaskListInfo(token string, info taskListInfo, out chan taskListProcessingResult) {
+	tasks, err := parser.requestTaskList(token, info.ID)
+	if err != nil {
+		log.Error(err)
+		out <- taskListProcessingResult{err: err}
+		return
+	}
+
+	taskList := todo.TaskList{
+		Name:              info.DisplayName,
+		WellknownListName: info.WellknownListName,
+		IsShared:          info.IsShared,
+		Tasks:             tasks}
+
+	out <- taskListProcessingResult{taskList: taskList}
 }

@@ -1,12 +1,14 @@
 package servers
 
 import (
-	"ToDoInfo/internal/todometrics"
 	"context"
+	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
 	"time"
+
+	"ToDoInfo/internal/todometrics"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -24,9 +26,11 @@ type TaskProvider interface {
 
 type Server struct {
 	indexTemplate *template.Template
-	cfg           config.Config
-	store         *sessions.CookieStore
-	taskProvider  TaskProvider
+	errorTemplate *template.Template
+
+	cfg          config.Config
+	store        *sessions.CookieStore
+	taskProvider TaskProvider
 }
 
 func New(cfg config.Config, taskProvider TaskProvider) (*Server, error) {
@@ -34,6 +38,7 @@ func New(cfg config.Config, taskProvider TaskProvider) (*Server, error) {
 
 	var err error
 	s.indexTemplate, err = template.ParseFiles("web/template/index.html")
+	s.errorTemplate, err = template.ParseFiles("web/template/error.html")
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +74,12 @@ func (s *Server) indexHandler() http.HandlerFunc {
 		taskLists, err := s.taskProvider.GetTasks(token)
 
 		if err != nil {
+			err = s.errorTemplate.Execute(w, struct {
+				ErrorMessage string
+			}{
+				ErrorMessage: fmt.Sprintf("Error %d. %s", http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError)),
+			})
+
 			log.Error(err)
 			return
 		}

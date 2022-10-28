@@ -49,7 +49,7 @@ func Init(level Level, logFolder string) {
 	}
 
 	w := zerolog.MultiLevelWriter(logFile, zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC1123})
-	logger = zerolog.New(w).With().Timestamp().Logger()
+	logger = zerolog.New(w).With().Timestamp().Caller().Logger()
 
 	isLogInit = true
 }

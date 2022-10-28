@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ToDo Info</title>
+    <link rel="icon" type="image/svg+xml"
+          href="/static/images/favicon.svg">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+
+    <link rel="stylesheet" href="/static/styles/style.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@600&family=Nunito:wght@800&display=swap"
+          rel="stylesheet">
+</head>
+<body>
+<div class="container">
+
+    <div class="columns is-mobile is-centered py-3 pt-6">
+        <div class="column is-one-third">
+            <h1 class="title is-size-2 has-text-centered">ToDo Info</h1>
+        </div>
+    </div>
+
+    <div class="columns is-mobile is-centered py-3">
+        <div class="column is-two-thirds">
+            <h2 class="subtitle is-size-3 has-text-centered">{{.ErrorMessage}}</h2>
+
+            <div class="columns is-centered">
+                <div class="column">
+                        <p class="has-text-centered">Please refresh the page.<p>
+                    <p class="has-text-centered">If that doesn't help, contact me at <a href="https://twitter.com/uchr_">https://twitter.com/uchr_</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+</body>
+</html>
