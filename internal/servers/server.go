@@ -2,7 +2,6 @@ package servers
 
 import (
 	"context"
-	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -76,18 +75,14 @@ func (s *Server) indexHandler() http.HandlerFunc {
 		taskLists, err := s.taskProvider.GetTasks(token)
 
 		if err != nil {
-			err = s.errorTemplate.Execute(w, struct {
-				ErrorMessage string
-			}{
-				ErrorMessage: fmt.Sprintf("Error %d. %s", http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError)),
-			})
+			err = s.errorTemplate.Execute(w, NewErrorPageData(s.cfg.RedirectURI, http.StatusInternalServerError))
 
 			log.Error(err)
 			return
 		}
 
 		metrics := todometrics.New(taskLists)
-		pageData := GetPageData(metrics)
+		pageData := NewMainPageData(s.cfg.RedirectURI, metrics)
 
 		err = s.indexTemplate.Execute(w, pageData)
 		if err != nil {

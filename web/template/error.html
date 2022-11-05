@@ -4,12 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ToDo Info</title>
-    <link rel="icon" type="image/svg+xml"
-          href="/static/images/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="{{ print .RedirectURI "static/images/favicon.svg" }}">
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
 
-    <link rel="stylesheet" href="/static/styles/style.css">
+    <link rel="stylesheet" href="{{ print .RedirectURI "static/styles/style.css" }}">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -17,7 +17,9 @@ type TaskPageData struct {
 	TaskRottenness string
 }
 
-type PageData struct {
+type MainPageData struct {
+	RedirectURI string
+
 	TotalAge int
 	ListAges []ListAge
 
@@ -25,8 +27,8 @@ type PageData struct {
 	RottenTasks []TaskPageData
 }
 
-func GetPageData(metrics *todometrics.Metrics) PageData {
-	pageData := PageData{}
+func NewMainPageData(redirectURI string, metrics *todometrics.Metrics) MainPageData {
+	pageData := MainPageData{RedirectURI: redirectURI}
 
 	listAges := metrics.GetListAges()
 	oldestTasks := metrics.GetTopOldestTasks(5)
