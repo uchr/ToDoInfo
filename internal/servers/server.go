@@ -8,16 +8,15 @@ import (
 	"net/url"
 	"time"
 
-	"ToDoInfo/internal/todometrics"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/sessions"
 
-	"ToDoInfo/internal/config"
-	"ToDoInfo/internal/log"
-	"ToDoInfo/internal/login"
-	"ToDoInfo/internal/todo"
+	"github.com/uchr/ToDoInfo/internal/config"
+	"github.com/uchr/ToDoInfo/internal/log"
+	"github.com/uchr/ToDoInfo/internal/login"
+	"github.com/uchr/ToDoInfo/internal/todo"
+	"github.com/uchr/ToDoInfo/internal/todometrics"
 )
 
 type TaskProvider interface {

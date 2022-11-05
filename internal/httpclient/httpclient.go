@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"ToDoInfo/internal/log"
+	"github.com/uchr/ToDoInfo/internal/log"
 )
 
 func GetResponseError(data []byte) error {

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"ToDoInfo/internal/config"
-	"ToDoInfo/internal/log"
-	"ToDoInfo/internal/servers"
+	"github.com/uchr/ToDoInfo/internal/config"
+	"github.com/uchr/ToDoInfo/internal/log"
+	"github.com/uchr/ToDoInfo/internal/servers"
 )
 
 func main() {

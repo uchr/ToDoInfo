@@ -8,9 +8,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"ToDoInfo/internal/httpclient"
-	"ToDoInfo/internal/log"
-	"ToDoInfo/internal/todo"
+	"github.com/uchr/ToDoInfo/internal/httpclient"
+	"github.com/uchr/ToDoInfo/internal/log"
+	"github.com/uchr/ToDoInfo/internal/todo"
 )
 
 const baseRequestUrl = "https://graph.microsoft.com/v1.0/me/todo/lists"

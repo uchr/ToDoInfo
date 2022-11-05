@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"ToDoInfo/internal/todo"
+	"github.com/uchr/ToDoInfo/internal/todo"
 )
 
 func getDateFromNow(dayBefore int, hourBefore int) time.Time {

@@ -1,7 +1,7 @@
 package servers
 
 import (
-	"ToDoInfo/internal/todometrics"
+	"github.com/uchr/ToDoInfo/internal/todometrics"
 )
 
 type ListAge struct {

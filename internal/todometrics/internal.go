@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"ToDoInfo/internal/todo"
+	"github.com/uchr/ToDoInfo/internal/todo"
 )
 
 func getRottennessAge(r TaskRottenness) int {

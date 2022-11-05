@@ -1,8 +1,9 @@
 package main
 
 import (
-	"ToDoInfo/internal/todo"
 	"time"
+
+	"github.com/uchr/ToDoInfo/internal/todo"
 )
 
 type ExampleTasks struct {

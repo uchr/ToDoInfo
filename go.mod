@@ -1,4 +1,4 @@
-module ToDoInfo
+module github.com/uchr/ToDoInfo
 
 go 1.19
 

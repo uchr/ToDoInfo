@@ -3,7 +3,7 @@ package todometrics
 import (
 	"sort"
 
-	"ToDoInfo/internal/todo"
+	"github.com/uchr/ToDoInfo/internal/todo"
 )
 
 func (r TaskRottenness) String() string {

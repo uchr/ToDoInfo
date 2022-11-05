@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"time"
 
-	"ToDoInfo/internal/config"
-	"ToDoInfo/internal/httpclient"
+	"github.com/uchr/ToDoInfo/internal/config"
+	"github.com/uchr/ToDoInfo/internal/httpclient"
 )
 
 type authData struct {
@@ -27,13 +27,13 @@ const (
 )
 
 func GetAuthRequest(cfg config.Config) string {
-	v := url.Values{}
-	v.Add("client_id", cfg.ClientId)
-	v.Add("redirect_uri", cfg.HostURI)
-	v.Add("response_type", "code")
-	v.Add("response_mode", "query")
-	v.Add("scope", "User.Read Tasks.ReadWrite")
-	return baseRequestUrl + authRequestUrl + "?" + v.Encode()
+	values := url.Values{}
+	values.Add("client_id", cfg.ClientId)
+	values.Add("redirect_uri", cfg.HostURI)
+	values.Add("response_type", "code")
+	values.Add("response_mode", "query")
+	values.Add("scope", "User.Read Tasks.ReadWrite")
+	return baseRequestUrl + authRequestUrl + "?" + values.Encode()
 }
 
 func Auth(cfg config.Config, code string) (string, time.Duration, error) {

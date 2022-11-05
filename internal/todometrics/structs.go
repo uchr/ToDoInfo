@@ -1,6 +1,6 @@
 package todometrics
 
-import "ToDoInfo/internal/todo"
+import "github.com/uchr/ToDoInfo/internal/todo"
 
 type TaskRottenness int
 
