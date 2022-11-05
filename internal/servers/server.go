@@ -33,7 +33,10 @@ type Server struct {
 }
 
 func New(cfg config.Config, taskProvider TaskProvider) (*Server, error) {
-	s := Server{cfg: cfg, taskProvider: taskProvider}
+	s := Server{
+		cfg:          cfg,
+		taskProvider: taskProvider,
+	}
 
 	var err error
 	s.indexTemplate, err = template.ParseFiles("web/template/index.html")
@@ -64,7 +67,7 @@ func (s *Server) Run() error {
 		r.Handle("/static/*", http.StripPrefix("/static/", fs))
 	})
 
-	return http.ListenAndServe(":80", r)
+	return http.ListenAndServe(s.cfg.HostURI, r)
 }
 
 func (s *Server) indexHandler() http.HandlerFunc {
@@ -110,7 +113,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 				log.Error(err)
 				v := url.Values{}
 				v.Add("isAuth", "0")
-				http.Redirect(w, r, s.cfg.HostURI+"?"+v.Encode(), http.StatusMovedPermanently)
+				http.Redirect(w, r, s.cfg.RedirectURI+"?"+v.Encode(), http.StatusMovedPermanently)
 				return
 			}
 			session, err := s.store.Get(r, "auth-session")
@@ -128,7 +131,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
-			http.Redirect(w, r, s.cfg.HostURI, http.StatusMovedPermanently)
+			http.Redirect(w, r, s.cfg.RedirectURI, http.StatusMovedPermanently)
 			return
 		}
 

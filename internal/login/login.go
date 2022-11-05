@@ -29,7 +29,7 @@ const (
 func GetAuthRequest(cfg config.Config) string {
 	values := url.Values{}
 	values.Add("client_id", cfg.ClientId)
-	values.Add("redirect_uri", cfg.HostURI)
+	values.Add("redirect_uri", cfg.RedirectURI)
 	values.Add("response_type", "code")
 	values.Add("response_mode", "query")
 	values.Add("scope", "User.Read Tasks.ReadWrite")
@@ -41,7 +41,7 @@ func Auth(cfg config.Config, code string) (string, time.Duration, error) {
 	values.Add("client_id", cfg.ClientId)
 	values.Add("client_secret", cfg.ClientSecret)
 	values.Add("code", code)
-	values.Add("redirect_uri", cfg.HostURI)
+	values.Add("redirect_uri", cfg.RedirectURI)
 	values.Add("grant_type", "authorization_code")
 
 	body, err := httpclient.Post(baseRequestUrl+tokenRequestUrl, values)
