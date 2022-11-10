@@ -1,6 +1,7 @@
 package login
 
 import (
+	"context"
 	"encoding/json"
 	"net/url"
 	"time"
@@ -8,12 +9,6 @@ import (
 	"github.com/uchr/ToDoInfo/internal/config"
 	"github.com/uchr/ToDoInfo/internal/httpclient"
 )
-
-type authData struct {
-	DeviceCode      string `json:"device_code"`
-	UserCode        string `json:"user_code"`
-	VerificationUri string `json:"verification_uri"`
-}
 
 type tokenData struct {
 	AccessToken string `json:"access_token"`
@@ -36,7 +31,7 @@ func GetAuthRequest(cfg config.Config) string {
 	return baseRequestUrl + authRequestUrl + "?" + values.Encode()
 }
 
-func Auth(cfg config.Config, code string) (string, time.Duration, error) {
+func Auth(ctx context.Context, cfg config.Config, code string) (string, time.Duration, error) {
 	values := url.Values{}
 	values.Add("client_id", cfg.ClientId)
 	values.Add("client_secret", cfg.ClientSecret)
@@ -44,7 +39,7 @@ func Auth(cfg config.Config, code string) (string, time.Duration, error) {
 	values.Add("redirect_uri", cfg.RedirectURI)
 	values.Add("grant_type", "authorization_code")
 
-	body, err := httpclient.Post(baseRequestUrl+tokenRequestUrl, values)
+	body, err := httpclient.Post(ctx, baseRequestUrl+tokenRequestUrl, values)
 	if err != nil {
 		return "", 0, err
 	}

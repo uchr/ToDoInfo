@@ -19,7 +19,7 @@ import (
 )
 
 type TaskProvider interface {
-	GetTasks(token string) ([]todo.TaskList, error)
+	GetTasks(ctx context.Context, token string) ([]todo.TaskList, error)
 }
 
 type Server struct {
@@ -72,7 +72,7 @@ func (s *Server) Run() error {
 func (s *Server) indexHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.Context().Value("token").(string)
-		taskLists, err := s.taskProvider.GetTasks(token)
+		taskLists, err := s.taskProvider.GetTasks(r.Context(), token)
 
 		if err != nil {
 			err = s.errorTemplate.Execute(w, NewErrorPageData(s.cfg.RedirectURI, http.StatusInternalServerError))
@@ -103,7 +103,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		code := r.URL.Query().Get("code")
 		if code != "" {
 			log.Info("Request new token")
-			token, expiredIn, err := login.Auth(s.cfg, code)
+			token, expiredIn, err := login.Auth(r.Context(), s.cfg, code)
 			if err != nil {
 				log.Error(err)
 				v := url.Values{}

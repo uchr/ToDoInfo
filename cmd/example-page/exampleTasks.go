@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	"github.com/uchr/ToDoInfo/internal/todo"
@@ -14,7 +15,7 @@ func getDate(dayBefore int) time.Time {
 	return time.Now().Add(d)
 }
 
-func (e ExampleTasks) GetTasks(token string) ([]todo.TaskList, error) {
+func (e ExampleTasks) GetTasks(_ context.Context, _ string) ([]todo.TaskList, error) {
 	t := []todo.TaskList{
 		{
 			Name: "🏠Home",

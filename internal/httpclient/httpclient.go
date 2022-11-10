@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -48,8 +49,8 @@ func GetAuthError(data []byte) error {
 	return &ResponseError{errInfo.ErrorDescription}
 }
 
-func Post(requestUrl string, values url.Values) ([]byte, error) {
-	req, err := http.NewRequest("POST", requestUrl, strings.NewReader(values.Encode()))
+func Post(ctx context.Context, requestUrl string, values url.Values) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", requestUrl, strings.NewReader(values.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -76,8 +77,8 @@ func Post(requestUrl string, values url.Values) ([]byte, error) {
 	return body, nil
 }
 
-func GetRequest(requestUrl string, token string) ([]byte, error) {
-	req, err := http.NewRequest("GET", requestUrl, nil)
+func GetRequest(ctx context.Context, requestUrl string, token string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", requestUrl, nil)
 	if err != nil {
 		return nil, err
 	}

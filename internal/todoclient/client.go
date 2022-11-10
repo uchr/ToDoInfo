@@ -1,6 +1,7 @@
 package todoclient
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -29,8 +30,8 @@ func New() *TodoParser {
 	return &TodoParser{}
 }
 
-func (parser *TodoParser) requestTaskListInfos(token string) ([]taskListInfo, error) {
-	responseBody, err := httpclient.GetRequest(baseRequestUrl, token)
+func (parser *TodoParser) requestTaskListInfos(ctx context.Context, token string) ([]taskListInfo, error) {
+	responseBody, err := httpclient.GetRequest(ctx, baseRequestUrl, token)
 	if err != nil {
 		return nil, err
 	}
@@ -52,12 +53,12 @@ func (parser *TodoParser) requestTaskListInfos(token string) ([]taskListInfo, er
 	return tl.Value, nil
 }
 
-func (parser *TodoParser) requestTaskList(token string, taskListId string) ([]todo.Task, error) {
+func (parser *TodoParser) requestTaskList(ctx context.Context, token string, taskListId string) ([]todo.Task, error) {
 	const taskListUrl = "tasks?$filter=status%20eq%20'notStarted'"
 
 	log.Debug(fmt.Sprintf("Request tasks infos '%s'", taskListId))
 
-	responseBody, err := httpclient.GetRequest(baseRequestUrl+fmt.Sprintf("/%s/", taskListId)+taskListUrl, token)
+	responseBody, err := httpclient.GetRequest(ctx, baseRequestUrl+fmt.Sprintf("/%s/", taskListId)+taskListUrl, token)
 	if err != nil {
 		return nil, err
 	}
@@ -80,20 +81,20 @@ func (parser *TodoParser) requestTaskList(token string, taskListId string) ([]to
 	return tl.Value, nil
 }
 
-func (parser *TodoParser) GetTasks(token string) ([]todo.TaskList, error) {
+func (parser *TodoParser) GetTasks(ctx context.Context, token string) ([]todo.TaskList, error) {
 	log.Info("Request task lists")
 
-	taskListInfos, err := parser.requestTaskListInfos(token)
+	taskListInfos, err := parser.requestTaskListInfos(ctx, token)
 	if err != nil {
 		return nil, err
 	}
 
-	taskLists, err := parser.getListInfos(token, taskListInfos)
+	taskLists, err := parser.getListInfos(ctx, token, taskListInfos)
 
 	return taskLists, err
 }
 
-func (parser *TodoParser) getListInfos(token string, taskListInfos []taskListInfo) ([]todo.TaskList, error) {
+func (parser *TodoParser) getListInfos(ctx context.Context, token string, taskListInfos []taskListInfo) ([]todo.TaskList, error) {
 	const maxRequestForSecond = 4 // Max number of request to MS TODO
 
 	outputCh := make(chan taskListProcessingResult)
@@ -113,7 +114,7 @@ func (parser *TodoParser) getListInfos(token string, taskListInfos []taskListInf
 			wg.Add(1)
 			go func(info taskListInfo) {
 				defer wg.Done()
-				parser.processTaskListInfo(token, info, outputCh)
+				parser.processTaskListInfo(ctx, token, info, outputCh)
 			}(info)
 
 			counter++
@@ -145,8 +146,8 @@ type taskListProcessingResult struct {
 	err      error
 }
 
-func (parser *TodoParser) processTaskListInfo(token string, info taskListInfo, out chan taskListProcessingResult) {
-	tasks, err := parser.requestTaskList(token, info.ID)
+func (parser *TodoParser) processTaskListInfo(ctx context.Context, token string, info taskListInfo, out chan taskListProcessingResult) {
+	tasks, err := parser.requestTaskList(ctx, token, info.ID)
 	if err != nil {
 		log.Error(err)
 		out <- taskListProcessingResult{err: err}
