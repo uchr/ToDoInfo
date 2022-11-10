@@ -2,6 +2,7 @@ package todometrics
 
 import (
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/uchr/ToDoInfo/internal/todo"
@@ -43,10 +44,6 @@ func getTaskAge(task todo.Task) int {
 func getSortedTasks(taskLists []todo.TaskList) []TaskRottennessInfo {
 	result := make([]TaskRottennessInfo, 0)
 	for _, taskList := range taskLists {
-		if taskList.WellknownListName == "defaultList" || taskList.Name == "Flagged Emails" {
-			continue
-		}
-
 		for _, task := range taskList.Tasks {
 			age := getTaskAge(task)
 			result = append(result, TaskRottennessInfo{
@@ -63,4 +60,27 @@ func getSortedTasks(taskLists []todo.TaskList) []TaskRottennessInfo {
 	})
 
 	return result
+}
+
+func filterTasks(taskLists []todo.TaskList) []todo.TaskList {
+	filteredTaskList := make([]todo.TaskList, 0, len(taskLists))
+
+	for _, taskList := range taskLists {
+		tasks := make([]todo.Task, 0, len(taskList.Tasks))
+		for _, task := range taskList.Tasks {
+			if strings.Contains(task.Body.Content, "#todo-info-skip") {
+				continue
+			}
+			tasks = append(tasks, task)
+		}
+
+		filteredTaskList = append(filteredTaskList, todo.TaskList{
+			Name:              taskList.Name,
+			WellknownListName: taskList.WellknownListName,
+			IsShared:          taskList.IsShared,
+			Tasks:             tasks,
+		})
+	}
+
+	return filteredTaskList
 }

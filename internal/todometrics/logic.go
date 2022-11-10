@@ -21,7 +21,9 @@ func (r TaskRottenness) String() string {
 }
 
 func New(taskLists []todo.TaskList) *Metrics {
-	return &Metrics{lists: taskLists, sortedTasks: getSortedTasks(taskLists)}
+	filteredTasks := filterTasks(taskLists)
+
+	return &Metrics{lists: filteredTasks, sortedTasks: getSortedTasks(filteredTasks)}
 }
 
 func (l *Metrics) GetListAges() ListAges {
