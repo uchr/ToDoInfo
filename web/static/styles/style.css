@@ -23,6 +23,10 @@ h1, h2 {
 
 table, tbody, tr, th, td{
     background-color: #00000000 !important;
+    margin-left:auto;
+    margin-right:auto;
+    table-layout: fixed;
+    width: 90%;
 }
 
 .table td, .table th {
@@ -30,4 +34,8 @@ table, tbody, tr, th, td{
 	border-width: 0 0 1px;
 	padding: .5em .75em;
 	vertical-align: top;
+}
+
+.small-column {
+    width: 25%;
 }
