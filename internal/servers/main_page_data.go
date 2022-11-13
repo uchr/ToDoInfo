@@ -5,9 +5,10 @@ import (
 )
 
 type ListAge struct {
-	Title      string
-	Age        int
-	OldestTask string
+	Title         string
+	Age           int
+	OldestTask    string
+	OldestTaskAge int
 }
 
 type TaskPageData struct {
@@ -38,9 +39,10 @@ func NewMainPageData(redirectURI string, metrics *todometrics.Metrics) MainPageD
 	pageData.TotalAge = listAges.TotalAge
 	for _, listAge := range listAges.Ages {
 		pageData.ListAges = append(pageData.ListAges, ListAge{
-			Title:      listAge.Title,
-			Age:        listAge.Age,
-			OldestTask: oldestTaskForLists[listAge.Title],
+			Title:         listAge.Title,
+			Age:           listAge.Age,
+			OldestTask:    oldestTaskForLists[listAge.Title].TaskName,
+			OldestTaskAge: oldestTaskForLists[listAge.Title].Age,
 		})
 	}
 

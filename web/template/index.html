@@ -18,78 +18,119 @@
 <body>
 <div class="container">
 
-    <div class="columns is-mobile is-centered py-3 pt-6">
+    <!-- Title -->
+    <div class="columns is-centered py-3 pt-6 pl-5 pr-5">
         <div class="column is-one-third">
-            <h1 class="title is-size-2 has-text-centered">ToDo Info</h1>
+            <h1 class="title is-size-2 has-text-centered">TODO Info</h1>
         </div>
     </div>
 
-
-    <div class="columns is-mobile is-centered py-3">
-        <div class="column is-two-thirds">
+    <!-- Lists stats -->
+    <div class="columns is-centered py-3 pl-5 pr-5">
+        <div class="column is-three-quarters">
             <h2 class="subtitle is-size-3 has-text-centered">{{.TotalAge}} days</h2>
 
-            <div class="columns is-centered">
-                <div class="column">
-                    <table class="table is-fullwidth">
-                        <tbody>
-                        {{range .ListAges}}
-                        <tr>
-                            <td>{{.Title}}</td>
-                            <td>{{.OldestTask}}</td>
-                            <td class="age">{{.Age}} days</td>
-                        </tr>
-                        {{end}}
-                        </tbody>
-                    </table>
-                </div>
+            <table class="table is-hidden-touch">
+                <thead>
+                    <tr>
+                        <th>List</th>
+                        <th>Oldest task</th>
+                        <th>Age</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {{range .ListAges}}
+                <tr>
+                    <td>{{.Title}}</td>
+                    <td>{{.OldestTask}}</td>
+                    <td class="age">{{.Age}} days</td>
+                </tr>
+                {{end}}
+                </tbody>
+            </table>
+
+            <div class="content is-hidden-desktop">
+                {{range .ListAges}}
+                <dl>
+                    <dt>{{.Title}} <span class="age">{{.Age}} days</span></dt>
+                    <dd>{{.OldestTask}} <span class="age">({{.OldestTaskAge}} days)</span></dd>
+                </dl>
+                {{end}}
             </div>
         </div>
     </div>
 
-    <div class="columns is-mobile is-centered py-3">
-        <div class="column is-two-thirds">
-            <h2 class="subtitle is-size-3 has-text-centered">Oldest tasks</h2>
-
-            <div class="columns is-centered">
-                <div class="column">
-                    <table class="table is-fullwidth">
-                        <tbody>
-                        {{range .OldestTasks}}
-                        <tr>
-                            <td>{{.TaskRottenness}}</td>
-                            <td>{{.TaskList}}</td>
-                            <td>{{.TaskName}}</td>
-                            <td class="age">{{.Age}} days</td>
-                        </tr>
-                        {{end}}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-
-    <div class="columns is-mobile is-centered py-3 pb-6">
-        <div class="column is-two-thirds">
+    <!-- Rotten list -->
+    <div class="columns is-centered py-3 pl-5 pr-5">
+        <div class="column is-three-quarters">
             <h2 class="subtitle is-size-3 has-text-centered">Rotten tasks</h2>
 
-            <div class="columns is-centered">
-                <div class="column">
-                    <table class="table is-fullwidth">
-                        <tbody>
-                        {{range .RottenTasks}}
-                        <tr>
-                            <td>{{.TaskRottenness}}</td>
-                            <td>{{.TaskList}}</td>
-                            <td>{{.TaskName}}</td>
-                            <td class="age">{{.Age}} days</td>
-                        </tr>
-                        {{end}}
-                        </tbody>
-                    </table>
-                </div>
+            <table class="table is-hidden-touch">
+                <thead>
+                <tr>
+                    <th></th>
+                    <th>List</th>
+                    <th>Task</th>
+                    <th>Age</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{range .RottenTasks}}
+                <tr>
+                    <td>{{.TaskRottenness}}</td>
+                    <td>{{.TaskList}}</td>
+                    <td>{{.TaskName}}</td>
+                    <td class="age">{{.Age}} days</td>
+                </tr>
+                {{end}}
+                </tbody>
+            </table>
+
+            <div class="content is-hidden-desktop">
+                {{range .RottenTasks}}
+                <dl>
+                    <dt>{{.TaskRottenness}} <span class="age">{{.Age}} days</span></dt>
+                    <dd>{{.TaskName}} ({{.TaskList}})</dd>
+                </dl>
+                {{end}}
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Oldest task list -->
+    <div class="columns is-centered py-3 pl-5 pr-5">
+        <div class="column is-three-quarters">
+            <h2 class="subtitle is-size-3 has-text-centered">Oldest tasks</h2>
+
+            <table class="table is-hidden-touch">
+                <thead>
+                <tr>
+                    <th></th>
+                    <th>List</th>
+                    <th>Task</th>
+                    <th>Age</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{range .OldestTasks}}
+                <tr>
+                    <td class="one">{{.TaskRottenness}}</td>
+                    <td class="one">{{.TaskList}}</td>
+                    <td>{{.TaskName}}</td>
+                    <td class="age">{{.Age}} days</td>
+                </tr>
+                {{end}}
+                </tbody>
+            </table>
+
+            <div class="content is-hidden-desktop">
+                {{range .OldestTasks}}
+                <dl>
+                    <dt>{{.TaskRottenness}} <span class="age">{{.Age}} days</span></dt>
+                    <dd>{{.TaskName}} ({{.TaskList}})</dd>
+                </dl>
+                {{end}}
             </div>
         </div>
     </div>

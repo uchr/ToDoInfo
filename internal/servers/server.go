@@ -39,6 +39,10 @@ func New(cfg config.Config, taskProvider TaskProvider) (*Server, error) {
 
 	var err error
 	s.indexTemplate, err = template.ParseFiles("web/template/index.html")
+	if err != nil {
+		return nil, err
+	}
+
 	s.errorTemplate, err = template.ParseFiles("web/template/error.html")
 	if err != nil {
 		return nil, err

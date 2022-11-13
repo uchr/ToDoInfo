@@ -63,23 +63,29 @@ func (l *Metrics) GetTopOldestTasks(n int) []TaskRottennessInfo {
 	return l.sortedTasks[:m]
 }
 
-func (l *Metrics) GetOldestTaskForList() map[string]string {
-	result := make(map[string]string)
+func (l *Metrics) GetOldestTaskForList() map[string]TaskRottennessInfo {
+	result := make(map[string]TaskRottennessInfo)
 	for _, taskList := range l.lists {
 		if len(taskList.Tasks) == 0 {
-			result[taskList.Name] = ""
+			result[taskList.Name] = TaskRottennessInfo{}
 		}
 
 		maxAge := 0
-		oldestTask := ""
-		for _, task := range taskList.Tasks {
+		taskIndex := 0
+		for i, task := range taskList.Tasks {
 			age := getTaskAge(task)
 			if age >= maxAge {
 				maxAge = age
-				oldestTask = task.Title
+				taskIndex = i
 			}
 		}
-		result[taskList.Name] = oldestTask
+		taskAge := getTaskAge(taskList.Tasks[taskIndex])
+		result[taskList.Name] = TaskRottennessInfo{
+			TaskName:   taskList.Tasks[taskIndex].Title,
+			TaskList:   taskList.Name,
+			Age:        taskAge,
+			Rottenness: getTaskRottenness(taskAge),
+		}
 	}
 	return result
 }
