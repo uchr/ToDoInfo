@@ -228,8 +228,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		isExpired := time.Now().After(t)
 
 		if isExpired {
-			log.Info("Request auth code")
-			http.Redirect(w, r, login.GetAuthRequest(s.cfg), http.StatusFound)
+			log.Info("Azure token is expired")
+			http.Redirect(w, r, s.cfg.RedirectURI+"login", http.StatusFound)
 			return
 		}
 
