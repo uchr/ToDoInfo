@@ -136,7 +136,7 @@ func (s *Server) tokenHandler() http.HandlerFunc {
 			log.Error(err)
 			v := url.Values{}
 			v.Add("isAuth", "0")
-			http.Redirect(w, r, s.cfg.RedirectURI+"auth"+"?"+v.Encode(), http.StatusMovedPermanently)
+			http.Redirect(w, r, s.cfg.RedirectURI+"auth"+"?"+v.Encode(), http.StatusPermanentRedirect)
 			return
 		}
 
@@ -155,13 +155,13 @@ func (s *Server) tokenHandler() http.HandlerFunc {
 			return
 		}
 
-		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusMovedPermanently)
+		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusPermanentRedirect)
 	}
 }
 
 func (s *Server) loginHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, login.GetAuthRequest(s.cfg), http.StatusFound)
+		http.Redirect(w, r, login.GetAuthRequest(s.cfg), http.StatusPermanentRedirect)
 	}
 }
 
@@ -184,7 +184,7 @@ func (s *Server) logoutHandler() http.HandlerFunc {
 			}
 		}
 
-		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusFound)
+		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusTemporaryRedirect)
 	}
 }
 
@@ -206,7 +206,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		for _, authURL := range authURLs {
 			if strings.HasPrefix(r.URL.String(), authURL) {
 				if !session.IsNew {
-					http.Redirect(w, r, s.cfg.RedirectURI, http.StatusFound)
+					http.Redirect(w, r, s.cfg.RedirectURI, http.StatusPermanentRedirect)
 				}
 
 				next.ServeHTTP(w, r)
@@ -215,7 +215,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		if session.IsNew {
-			http.Redirect(w, r, s.cfg.RedirectURI+"auth", http.StatusFound)
+			http.Redirect(w, r, s.cfg.RedirectURI+"auth", http.StatusPermanentRedirect)
 			return
 		}
 
@@ -229,7 +229,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 		if isExpired {
 			log.Info("Azure token is expired")
-			http.Redirect(w, r, s.cfg.RedirectURI+"login", http.StatusFound)
+			http.Redirect(w, r, s.cfg.RedirectURI+"login", http.StatusTemporaryRedirect)
 			return
 		}
 
