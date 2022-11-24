@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -24,6 +25,7 @@ type TaskProvider interface {
 
 type Server struct {
 	indexTemplate *template.Template
+	authTemplate  *template.Template
 	errorTemplate *template.Template
 
 	cfg          config.Config
@@ -39,6 +41,11 @@ func New(cfg config.Config, taskProvider TaskProvider) (*Server, error) {
 
 	var err error
 	s.indexTemplate, err = template.ParseFiles("web/template/index.html")
+	if err != nil {
+		return nil, err
+	}
+
+	s.authTemplate, err = template.ParseFiles("web/template/auth.html")
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +73,10 @@ func (s *Server) Run() error {
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", s.indexHandler())
+		r.Get("/auth", s.authHandler())
+		r.Get("/token", s.tokenHandler())
+		r.Get("/login", s.loginHandler())
+		r.Get("/logout", s.logoutHandler())
 
 		r.Handle("/static/*", http.StripPrefix("/static/", fs))
 	})
@@ -96,41 +107,91 @@ func (s *Server) indexHandler() http.HandlerFunc {
 	}
 }
 
-func (s *Server) authMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (s *Server) authHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		isAuthFailed := r.URL.Query().Get("isAuth")
-		if isAuthFailed == "0" {
-			// TODO: Show page with info about failed auth and button "Try again"
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		err := s.authTemplate.Execute(w,
+			struct {
+				RedirectURI  string
+				IsAuthFailed bool
+			}{
+				RedirectURI:  s.cfg.RedirectURI,
+				IsAuthFailed: isAuthFailed == "0",
+			},
+		)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+	}
+}
+
+func (s *Server) tokenHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+
+		log.Info("Request new token")
+		token, expiredIn, err := login.Auth(r.Context(), s.cfg, code)
+		if err != nil {
+			log.Error(err)
+			v := url.Values{}
+			v.Add("isAuth", "0")
+			http.Redirect(w, r, s.cfg.RedirectURI+"auth"+"?"+v.Encode(), http.StatusMovedPermanently)
+			return
 		}
 
-		code := r.URL.Query().Get("code")
-		if code != "" {
-			log.Info("Request new token")
-			token, expiredIn, err := login.Auth(r.Context(), s.cfg, code)
-			if err != nil {
-				log.Error(err)
-				v := url.Values{}
-				v.Add("isAuth", "0")
-				http.Redirect(w, r, s.cfg.RedirectURI+"?"+v.Encode(), http.StatusMovedPermanently)
-				return
-			}
-			session, err := s.store.Get(r, "auth-session")
-			if err != nil {
-				log.Error(err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-			session.Values["token"] = token
-			session.Values["expiresAt"] = time.Now().Add(expiredIn).Format(time.RFC3339)
+		session, err := s.store.Get(r, "auth-session")
+		if err != nil {
+			log.Error(err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		session.Values["token"] = token
+		session.Values["expiresAt"] = time.Now().Add(expiredIn).Format(time.RFC3339)
+		err = session.Save(r, w)
+		if err != nil {
+			log.Error(err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusMovedPermanently)
+	}
+}
+
+func (s *Server) loginHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, login.GetAuthRequest(s.cfg), http.StatusFound)
+	}
+}
+
+func (s *Server) logoutHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session, err := s.store.Get(r, "auth-session")
+		if err != nil {
+			log.Error(err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		if !session.IsNew {
+			session.Options.MaxAge = -1
 			err = session.Save(r, w)
 			if err != nil {
 				log.Error(err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
+		}
 
-			http.Redirect(w, r, s.cfg.RedirectURI, http.StatusMovedPermanently)
+		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusFound)
+	}
+}
+
+func (s *Server) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.String(), "/static") {
+			next.ServeHTTP(w, r)
 			return
 		}
 
@@ -141,26 +202,38 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		isExpired := false
-		if !session.IsNew {
-			t, err := time.Parse(time.RFC3339, session.Values["expiresAt"].(string))
-			if err != nil {
-				log.Error(err)
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		authURLs := []string{"/auth", "/token", "/login"}
+		for _, authURL := range authURLs {
+			if strings.HasPrefix(r.URL.String(), authURL) {
+				if !session.IsNew {
+					http.Redirect(w, r, s.cfg.RedirectURI, http.StatusFound)
+				}
+
+				next.ServeHTTP(w, r)
 				return
 			}
-			isExpired = time.Now().After(t)
 		}
 
-		// TODO: Show page with auth request the new session and redirect only for expired token
-		if session.IsNew || isExpired {
+		if session.IsNew {
+			http.Redirect(w, r, s.cfg.RedirectURI+"auth", http.StatusFound)
+			return
+		}
+
+		t, err := time.Parse(time.RFC3339, session.Values["expiresAt"].(string))
+		if err != nil {
+			log.Error(err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		isExpired := time.Now().After(t)
+
+		if isExpired {
 			log.Info("Request auth code")
 			http.Redirect(w, r, login.GetAuthRequest(s.cfg), http.StatusFound)
 			return
 		}
 
 		ctx := context.WithValue(r.Context(), "token", session.Values["token"])
-
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

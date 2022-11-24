@@ -68,6 +68,7 @@ func (l *Metrics) GetOldestTaskForList() map[string]TaskRottennessInfo {
 	for _, taskList := range l.lists {
 		if len(taskList.Tasks) == 0 {
 			result[taskList.Name] = TaskRottennessInfo{}
+			continue
 		}
 
 		maxAge := 0

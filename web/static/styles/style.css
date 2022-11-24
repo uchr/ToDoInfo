@@ -1,5 +1,5 @@
 html {
-    background-color: #e63946;
+    background-color: #E63946;
 }
 
 body {
@@ -15,6 +15,17 @@ body {
 .age {
     font-family: 'Nunito', sans-serif;
     font-weight: bold;
+}
+
+.bold {
+    font-family: 'Nunito', sans-serif;
+    font-weight: bold;
+}
+
+.button {
+    background-color: #4F5D75;
+    border-width: 0;
+    color: #FFEDDF;
 }
 
 h1, h2 {
