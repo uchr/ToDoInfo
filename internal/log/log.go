@@ -54,6 +54,10 @@ func Init(level Level, logFolder string) {
 	isLogInit = true
 }
 
+func Panic(msg string, err error) {
+	getLogger().Panic().Err(errors.Wrap(err, msg)).Send()
+}
+
 func Error(err error) {
 	getLogger().Error().Err(errors.Wrap(err, "")).Send()
 }
