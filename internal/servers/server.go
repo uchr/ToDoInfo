@@ -109,8 +109,19 @@ func (s *Server) indexHandler() http.HandlerFunc {
 
 func (s *Server) authHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		session, err := s.store.Get(r, "auth-session")
+		if err != nil {
+			log.Error(err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		if !session.IsNew {
+			http.Redirect(w, r, s.cfg.RedirectURI, http.StatusFound)
+		}
+
 		isAuthFailed := r.URL.Query().Get("isAuth")
-		err := s.authTemplate.Execute(w,
+		err = s.authTemplate.Execute(w,
 			struct {
 				RedirectURI  string
 				IsAuthFailed bool
@@ -136,7 +147,7 @@ func (s *Server) tokenHandler() http.HandlerFunc {
 			log.Error(err)
 			v := url.Values{}
 			v.Add("isAuth", "0")
-			http.Redirect(w, r, s.cfg.RedirectURI+"auth"+"?"+v.Encode(), http.StatusPermanentRedirect)
+			http.Redirect(w, r, s.cfg.RedirectURI+"auth"+"?"+v.Encode(), http.StatusMovedPermanently)
 			return
 		}
 
@@ -155,13 +166,13 @@ func (s *Server) tokenHandler() http.HandlerFunc {
 			return
 		}
 
-		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusPermanentRedirect)
+		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusMovedPermanently)
 	}
 }
 
 func (s *Server) loginHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, login.GetAuthRequest(s.cfg), http.StatusPermanentRedirect)
+		http.Redirect(w, r, login.GetAuthRequest(s.cfg), http.StatusSeeOther)
 	}
 }
 
@@ -184,7 +195,7 @@ func (s *Server) logoutHandler() http.HandlerFunc {
 			}
 		}
 
-		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusTemporaryRedirect)
+		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusFound)
 	}
 }
 
@@ -195,6 +206,15 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		authURLs := []string{"/auth", "/token", "/login"}
+		for _, authURL := range authURLs {
+			if strings.HasPrefix(r.URL.String(), authURL) {
+
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
 		session, err := s.store.Get(r, "auth-session")
 		if err != nil {
 			log.Error(err)
@@ -202,20 +222,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		authURLs := []string{"/auth", "/token", "/login"}
-		for _, authURL := range authURLs {
-			if strings.HasPrefix(r.URL.String(), authURL) {
-				if !session.IsNew {
-					http.Redirect(w, r, s.cfg.RedirectURI, http.StatusPermanentRedirect)
-				}
-
-				next.ServeHTTP(w, r)
-				return
-			}
-		}
-
 		if session.IsNew {
-			http.Redirect(w, r, s.cfg.RedirectURI+"auth", http.StatusPermanentRedirect)
+			http.Redirect(w, r, s.cfg.RedirectURI+"auth", http.StatusFound)
 			return
 		}
 
@@ -229,7 +237,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 		if isExpired {
 			log.Info("Azure token is expired")
-			http.Redirect(w, r, s.cfg.RedirectURI+"login", http.StatusTemporaryRedirect)
+			http.Redirect(w, r, login.GetAuthRequest(s.cfg), http.StatusSeeOther)
 			return
 		}
 
