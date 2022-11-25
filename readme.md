@@ -15,3 +15,5 @@ The main page shows:
 * Sum of ages for each list
 * The five oldest task
 * Rotten tasks. This is a list with 🥱🤢 task
+
+You can use `#todo-info-skip` in the task note to skip the task when measuring of list ages.
