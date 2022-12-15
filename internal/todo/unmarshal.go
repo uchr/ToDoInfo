@@ -14,6 +14,10 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 		*TaskAlias
 		CreatedDateTime      string `json:"createdDateTime"`
 		LastModifiedDateTime string `json:"lastModifiedDateTime"`
+		DueDateTime          *struct {
+			DateTime string `json:"dateTime"`
+			TimeZone string `json:"timeZone"`
+		} `json:"dueDateTime"`
 	}{
 		TaskAlias: (*TaskAlias)(t),
 	}
@@ -30,6 +34,14 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.LastModifiedDateTime, err = time.Parse(layout, aliasValue.LastModifiedDateTime)
 	if err != nil {
 		return err
+	}
+
+	if aliasValue.DueDateTime != nil {
+		const DueDateTimeLayout = "2006-01-02T15:04:05.9999999"
+		t.DueDateTime, err = time.Parse(DueDateTimeLayout, aliasValue.DueDateTime.DateTime)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -34,10 +34,14 @@ func getTaskRottenness(age int) TaskRottenness {
 func getTaskAge(task todo.Task) int {
 	taskTime := task.CreatedDateTime
 	if task.Recurrence != nil {
-		taskTime = task.LastModifiedDateTime
+		taskTime = task.DueDateTime
 	}
+
 	currentTime := time.Now()
 	delta := currentTime.Sub(taskTime)
+	if delta <= 0 {
+		return 0
+	}
 	return int(delta.Hours() / 24)
 }
 

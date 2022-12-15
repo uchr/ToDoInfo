@@ -26,6 +26,11 @@ func TestGetTaskAge(t *testing.T) {
 			expectedAge: 0,
 		},
 		{
+			name:        "Future time",
+			taskTime:    getDateFromNow(-10, 5),
+			expectedAge: 0,
+		},
+		{
 			name:        "Today",
 			taskTime:    getDateFromNow(0, 5),
 			expectedAge: 0,
@@ -445,12 +450,12 @@ func TestGetOldestTaskForList(t *testing.T) {
 	tests := []struct {
 		name           string
 		taskLists      []todo.TaskList
-		expectedResult map[string]string
+		expectedResult map[string]TaskRottennessInfo
 	}{
 		{
 			name:           "Empty list",
 			taskLists:      make([]todo.TaskList, 0),
-			expectedResult: make(map[string]string, 0),
+			expectedResult: make(map[string]TaskRottennessInfo, 0),
 		},
 		{
 			name: "Empty lists",
@@ -464,9 +469,9 @@ func TestGetOldestTaskForList(t *testing.T) {
 					Tasks: nil,
 				},
 			},
-			expectedResult: map[string]string{
-				"List1": "",
-				"List2": "",
+			expectedResult: map[string]TaskRottennessInfo{
+				"List1": {},
+				"List2": {},
 			},
 		},
 		{
@@ -508,9 +513,19 @@ func TestGetOldestTaskForList(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: map[string]string{
-				"List1": "Task2",
-				"List2": "Task4",
+			expectedResult: map[string]TaskRottennessInfo{
+				"List1": {
+					TaskName:   "Task2",
+					TaskList:   "List1",
+					Age:        10,
+					Rottenness: TiredTaskRottenness,
+				},
+				"List2": {
+					TaskName:   "Task4",
+					TaskList:   "List2",
+					Age:        20,
+					Rottenness: ZombieTaskRottenness,
+				},
 			},
 		},
 	}
