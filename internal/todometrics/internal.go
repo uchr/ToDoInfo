@@ -33,8 +33,8 @@ func getTaskRottenness(age int) TaskRottenness {
 
 func getTaskAge(task todo.Task) int {
 	taskTime := task.CreatedDateTime
-	if task.Recurrence != nil {
-		taskTime = task.DueDateTime
+	if task.DueDateTime != nil {
+		taskTime = *task.DueDateTime
 	}
 
 	currentTime := time.Now()

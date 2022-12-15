@@ -38,10 +38,11 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 
 	if aliasValue.DueDateTime != nil {
 		const DueDateTimeLayout = "2006-01-02T15:04:05.9999999"
-		t.DueDateTime, err = time.Parse(DueDateTimeLayout, aliasValue.DueDateTime.DateTime)
+		dueDateTime, err := time.Parse(DueDateTimeLayout, aliasValue.DueDateTime.DateTime)
 		if err != nil {
 			return err
 		}
+		t.DueDateTime = &dueDateTime
 	}
 
 	return nil
