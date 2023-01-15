@@ -2,7 +2,7 @@ package servers
 
 import (
 	"context"
-	"html/template"
+	"embed"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,43 +19,29 @@ import (
 	"github.com/uchr/ToDoInfo/internal/todometrics"
 )
 
+//go:embed static
+var staticFS embed.FS
+
 type TaskProvider interface {
 	GetTasks(ctx context.Context, token string) ([]todo.TaskList, error)
 }
 
 type Server struct {
-	indexTemplate *template.Template
-	authTemplate  *template.Template
-	errorTemplate *template.Template
+	templates Templates
 
 	cfg          config.Config
-	store        *sessions.CookieStore
+	cookieStore  *sessions.CookieStore
 	taskProvider TaskProvider
 }
 
-func New(cfg config.Config, taskProvider TaskProvider) (*Server, error) {
+func New(cfg config.Config, taskProvider TaskProvider, templates Templates) (*Server, error) {
 	s := Server{
+		templates:    templates,
 		cfg:          cfg,
 		taskProvider: taskProvider,
 	}
 
-	var err error
-	s.indexTemplate, err = template.ParseFiles("web/template/index.html")
-	if err != nil {
-		return nil, err
-	}
-
-	s.authTemplate, err = template.ParseFiles("web/template/auth.html")
-	if err != nil {
-		return nil, err
-	}
-
-	s.errorTemplate, err = template.ParseFiles("web/template/error.html")
-	if err != nil {
-		return nil, err
-	}
-
-	s.store = sessions.NewCookieStore([]byte(cfg.SessionKey))
+	s.cookieStore = sessions.NewCookieStore([]byte(cfg.SessionKey))
 
 	return &s, nil
 }
@@ -69,7 +55,7 @@ func (s *Server) Run() error {
 	r.Use(middleware.Recoverer)
 	r.Use(s.authMiddleware)
 
-	fs := http.FileServer(http.Dir("web/static/"))
+	fsHandler := http.FileServer(http.FS(staticFS))
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", s.indexHandler())
@@ -78,7 +64,7 @@ func (s *Server) Run() error {
 		r.Get("/login", s.loginHandler())
 		r.Get("/logout", s.logoutHandler())
 
-		r.Handle("/static/*", http.StripPrefix("/static/", fs))
+		r.Handle("/static/*", fsHandler)
 	})
 
 	return http.ListenAndServe(s.cfg.HostURI, r)
@@ -90,7 +76,7 @@ func (s *Server) indexHandler() http.HandlerFunc {
 		taskLists, err := s.taskProvider.GetTasks(r.Context(), token)
 
 		if err != nil {
-			err = s.errorTemplate.Execute(w, NewErrorPageData(s.cfg.RedirectURI, http.StatusInternalServerError))
+			err = s.templates.Render(w, "error", NewErrorPageData(s.cfg.RedirectURI, http.StatusInternalServerError))
 
 			log.Error(err)
 			return
@@ -99,7 +85,7 @@ func (s *Server) indexHandler() http.HandlerFunc {
 		metrics := todometrics.New(taskLists)
 		pageData := NewMainPageData(s.cfg.RedirectURI, metrics)
 
-		err = s.indexTemplate.Execute(w, pageData)
+		err = s.templates.Render(w, "index", pageData)
 		if err != nil {
 			log.Error(err)
 			return
@@ -109,7 +95,7 @@ func (s *Server) indexHandler() http.HandlerFunc {
 
 func (s *Server) authHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		session, err := s.store.Get(r, "auth-session")
+		session, err := s.cookieStore.Get(r, "auth-session")
 		if err != nil {
 			log.Error(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -121,7 +107,7 @@ func (s *Server) authHandler() http.HandlerFunc {
 		}
 
 		isAuthFailed := r.URL.Query().Get("isAuth")
-		err = s.authTemplate.Execute(w,
+		err = s.templates.Render(w, "auth",
 			struct {
 				RedirectURI  string
 				IsAuthFailed bool
@@ -151,7 +137,7 @@ func (s *Server) tokenHandler() http.HandlerFunc {
 			return
 		}
 
-		session, err := s.store.Get(r, "auth-session")
+		session, err := s.cookieStore.Get(r, "auth-session")
 		if err != nil {
 			log.Error(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -178,7 +164,7 @@ func (s *Server) loginHandler() http.HandlerFunc {
 
 func (s *Server) logoutHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		session, err := s.store.Get(r, "auth-session")
+		session, err := s.cookieStore.Get(r, "auth-session")
 		if err != nil {
 			log.Error(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -215,7 +201,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		session, err := s.store.Get(r, "auth-session")
+		session, err := s.cookieStore.Get(r, "auth-session")
 		if err != nil {
 			log.Error(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

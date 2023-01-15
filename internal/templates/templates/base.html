@@ -1,0 +1,27 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TODO Info</title>
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+
+    <link rel="stylesheet" href="/static/styles/style.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@600&family=Nunito:wght@800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+<section class="section">
+    <div class="container is-max-desktop">
+        {{ template "content" . }}
+    </div>
+</section>
+</body>
+</html>
+{{end}}

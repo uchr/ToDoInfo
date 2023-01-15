@@ -4,6 +4,7 @@ import (
 	"github.com/uchr/ToDoInfo/internal/config"
 	"github.com/uchr/ToDoInfo/internal/log"
 	"github.com/uchr/ToDoInfo/internal/servers"
+	"github.com/uchr/ToDoInfo/internal/templates"
 )
 
 func main() {
@@ -15,7 +16,13 @@ func main() {
 
 	log.Init(log.InfoLevel, cfg.LogFolder)
 
-	server, err := servers.New(*cfg, ExampleTasks{})
+	templateSystem, err := templates.NewTemplates()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	server, err := servers.New(*cfg, ExampleTasks{}, templateSystem)
 	if err != nil {
 		log.Error(err)
 		return

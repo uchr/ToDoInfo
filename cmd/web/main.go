@@ -6,6 +6,7 @@ import (
 	"github.com/uchr/ToDoInfo/internal/config"
 	"github.com/uchr/ToDoInfo/internal/log"
 	"github.com/uchr/ToDoInfo/internal/servers"
+	"github.com/uchr/ToDoInfo/internal/templates"
 	"github.com/uchr/ToDoInfo/internal/todoclient"
 )
 
@@ -25,8 +26,13 @@ func main() {
 	log.Init(log.InfoLevel, cfg.LogFolder)
 
 	taskProvider := todoclient.New()
+	templateSystem, err := templates.NewTemplates()
+	if err != nil {
+		log.Error(err)
+		return
+	}
 
-	server, err := servers.New(*cfg, taskProvider)
+	server, err := servers.New(*cfg, taskProvider, templateSystem)
 	if err != nil {
 		log.Error(err)
 		return
