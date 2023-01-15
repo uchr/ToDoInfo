@@ -20,22 +20,22 @@ func NewTemplates() (*templateSystem, error) {
 		templates: make(map[string]*template.Template),
 	}
 
-	if t, err := loadTemplate("templates/index.html"); err == nil {
+	if t, err := loadTemplate("templates/index.gohtml"); err == nil {
 		ts.templates["index"] = t
 	} else {
 		return nil, err
 	}
-	if t, err := loadTemplate("templates/tasks.html"); err == nil {
+	if t, err := loadTemplate("templates/tasks.gohtml"); err == nil {
 		ts.templates["tasks"] = t
 	} else {
 		return nil, err
 	}
-	if t, err := loadTemplate("templates/auth.html"); err == nil {
+	if t, err := loadTemplate("templates/auth.gohtml"); err == nil {
 		ts.templates["auth"] = t
 	} else {
 		return nil, err
 	}
-	if t, err := loadTemplate("templates/error.html"); err == nil {
+	if t, err := loadTemplate("templates/error.gohtml"); err == nil {
 		ts.templates["error"] = t
 	} else {
 		return nil, err
@@ -58,7 +58,7 @@ func (ts *templateSystem) Render(w io.Writer, name string, data interface{}) err
 }
 
 func loadTemplate(path string) (*template.Template, error) {
-	t, err := template.ParseFS(fs, "templates/base.html", path)
+	t, err := template.ParseFS(fs, "templates/base.gohtml", path)
 	if err != nil {
 		return nil, err
 	}

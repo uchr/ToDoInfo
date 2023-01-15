@@ -68,7 +68,7 @@ func (s *Server) Run() error {
 		r.Handle("/static/*", fsHandler)
 	})
 
-	return http.ListenAndServe(s.cfg.HostURI, r)
+	return http.ListenAndServe(s.cfg.Addr, r)
 }
 
 func (s *Server) indexHandler() http.HandlerFunc {
@@ -77,14 +77,14 @@ func (s *Server) indexHandler() http.HandlerFunc {
 		taskLists, err := s.taskProvider.GetTasks(r.Context(), token)
 
 		if err != nil {
-			err = s.templates.Render(w, "error", NewErrorPageData(http.StatusInternalServerError))
+			err = s.templates.Render(w, "error", NewErrorPageData(s.cfg.HostURL, http.StatusInternalServerError))
 
 			log.Error(err)
 			return
 		}
 
 		metrics := todometrics.New(taskLists)
-		pageData := NewPageData(metrics, false)
+		pageData := NewPageData(s.cfg.HostURL, metrics, false)
 		err = s.templates.Render(w, "index", pageData)
 		if err != nil {
 			log.Error(err)
@@ -99,14 +99,14 @@ func (s *Server) tasksHandler() http.HandlerFunc {
 		taskLists, err := s.taskProvider.GetTasks(r.Context(), token)
 
 		if err != nil {
-			err = s.templates.Render(w, "error", NewErrorPageData(http.StatusInternalServerError))
+			err = s.templates.Render(w, "error", NewErrorPageData(s.cfg.HostURL, http.StatusInternalServerError))
 
 			log.Error(err)
 			return
 		}
 
 		metrics := todometrics.New(taskLists)
-		pageData := NewPageData(metrics, true)
+		pageData := NewPageData(s.cfg.HostURL, metrics, true)
 		err = s.templates.Render(w, "tasks", pageData)
 		if err != nil {
 			log.Error(err)
@@ -125,7 +125,7 @@ func (s *Server) authHandler() http.HandlerFunc {
 		}
 
 		if !session.IsNew {
-			http.Redirect(w, r, s.cfg.RedirectURI, http.StatusFound)
+			http.Redirect(w, r, s.cfg.HostURL, http.StatusFound)
 		}
 
 		isAuthFailed := r.URL.Query().Get("isAuth")
@@ -134,7 +134,7 @@ func (s *Server) authHandler() http.HandlerFunc {
 				RedirectURI  string
 				IsAuthFailed bool
 			}{
-				RedirectURI:  s.cfg.RedirectURI,
+				RedirectURI:  s.cfg.HostURL,
 				IsAuthFailed: isAuthFailed == "0",
 			},
 		)
@@ -155,7 +155,7 @@ func (s *Server) tokenHandler() http.HandlerFunc {
 			log.Error(err)
 			v := url.Values{}
 			v.Add("isAuth", "0")
-			http.Redirect(w, r, s.cfg.RedirectURI+"auth"+"?"+v.Encode(), http.StatusMovedPermanently)
+			http.Redirect(w, r, s.cfg.HostURL+"auth"+"?"+v.Encode(), http.StatusMovedPermanently)
 			return
 		}
 
@@ -174,7 +174,7 @@ func (s *Server) tokenHandler() http.HandlerFunc {
 			return
 		}
 
-		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusMovedPermanently)
+		http.Redirect(w, r, s.cfg.HostURL, http.StatusMovedPermanently)
 	}
 }
 
@@ -203,7 +203,7 @@ func (s *Server) logoutHandler() http.HandlerFunc {
 			}
 		}
 
-		http.Redirect(w, r, s.cfg.RedirectURI, http.StatusFound)
+		http.Redirect(w, r, s.cfg.HostURL, http.StatusFound)
 	}
 }
 
@@ -231,7 +231,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		if session.IsNew {
-			http.Redirect(w, r, s.cfg.RedirectURI+"auth", http.StatusFound)
+			http.Redirect(w, r, s.cfg.HostURL+"auth", http.StatusFound)
 			return
 		}
 

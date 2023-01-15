@@ -24,7 +24,7 @@ const (
 func GetAuthRequest(cfg config.Config) string {
 	values := url.Values{}
 	values.Add("client_id", cfg.ClientId)
-	values.Add("redirect_uri", cfg.RedirectURI+"token")
+	values.Add("redirect_uri", cfg.HostURL+"token")
 	values.Add("response_type", "code")
 	values.Add("response_mode", "query")
 	values.Add("scope", "User.Read Tasks.ReadWrite")
@@ -36,7 +36,7 @@ func Auth(ctx context.Context, cfg config.Config, code string) (string, time.Dur
 	values.Add("client_id", cfg.ClientId)
 	values.Add("client_secret", cfg.ClientSecret)
 	values.Add("code", code)
-	values.Add("redirect_uri", cfg.RedirectURI+"token")
+	values.Add("redirect_uri", cfg.HostURL+"token")
 	values.Add("grant_type", "authorization_code")
 
 	body, err := httpclient.Post(ctx, baseRequestUrl+tokenRequestUrl, values)

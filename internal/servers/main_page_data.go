@@ -17,6 +17,8 @@ type Task struct {
 }
 
 type PageData struct {
+	HostURL string
+
 	TotalAge int
 	ListAges []ListAge
 
@@ -24,9 +26,9 @@ type PageData struct {
 	UpcomingTasks []Task
 }
 
-func NewPageData(metrics *todometrics.Metrics, fullTaskList bool) PageData {
+func NewPageData(hostURL string, metrics *todometrics.Metrics, fullTaskList bool) PageData {
 	const numberOfUpcomingTasks = 3
-	pageData := PageData{}
+	pageData := PageData{HostURL: hostURL}
 
 	listAges := metrics.GetListAges()
 	oldestTaskForLists := metrics.GetOldestTaskForList()
