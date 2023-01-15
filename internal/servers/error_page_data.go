@@ -6,9 +6,14 @@ import (
 )
 
 type ErrorPageData struct {
+	HostURL string
+
 	ErrorMessage string
 }
 
-func NewErrorPageData(errorCode int) ErrorPageData {
-	return ErrorPageData{ErrorMessage: fmt.Sprintf("Error %d. %s", errorCode, http.StatusText(errorCode))}
+func NewErrorPageData(hostURL string, errorCode int) ErrorPageData {
+	return ErrorPageData{
+		HostURL:      hostURL,
+		ErrorMessage: fmt.Sprintf("Error %d. %s", errorCode, http.StatusText(errorCode)),
+	}
 }

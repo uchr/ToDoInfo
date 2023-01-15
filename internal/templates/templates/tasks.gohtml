@@ -10,38 +10,10 @@
 <div class="columns is-centered py-3">
     <div class="column task-content">
         <h2 class="subtitle is-size-3 has-text-centered">{{.TotalAge}} days</h2>
-
-        <table class="table is-hidden-touch">
-            <thead>
-            <tr>
-                <th class="small-column">Age</th>
-                <th class="small-column">List</th>
-                <th>Oldest task</th>
-            </tr>
-            </thead>
-            <tbody>
-            {{range .ListAges}}
-            <tr>
-                <td class="small-column age">{{.Age}} days</td>
-                <td class="small-column">{{.Title}}</td>
-                <td>{{.OldestTask}} <span class="age">({{.OldestTaskAge}} days)</span></td>
-            </tr>
-            {{end}}
-            </tbody>
-        </table>
-
-        <div class="content is-hidden-desktop">
-            {{range .ListAges}}
-            <dl>
-                <dt>{{.Title}} <span class="age">{{.Age}} days</span></dt>
-                <dd>{{.OldestTask}} <span class="age">({{.OldestTaskAge}} days)</span></dd>
-            </dl>
-            {{end}}
-        </div>
     </div>
 </div>
 
-<!-- Rotten list -->
+<!-- Task list -->
 <div class="columns is-centered py-3">
     <div class="column task-content">
         <h2 class="subtitle is-size-3 has-text-centered">Tasks</h2>
@@ -88,7 +60,7 @@
         </div>
 
         <div class="content has-text-centered px-3 pb-3">
-            <a href="/tasks">More</a>
+            <a href="{{ .HostURL }}">Back</a>
         </div>
     </div>
 </div>
@@ -101,7 +73,7 @@
                 <a href="https://github.com/uchr/ToDoInfo">github.com</a>
             </span>
             <span class="is-pulled-right pr-4">
-                <a href="/logout">Log out</a>
+                <a href="{{ print .HostURL "logout" }}">Log out</a>
             </span>
         </div>
     </div>
