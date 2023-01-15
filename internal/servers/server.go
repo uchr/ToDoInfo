@@ -59,6 +59,7 @@ func (s *Server) Run() error {
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", s.indexHandler())
+		r.Get("/tasks", s.tasksHandler())
 		r.Get("/auth", s.authHandler())
 		r.Get("/token", s.tokenHandler())
 		r.Get("/login", s.loginHandler())
@@ -76,16 +77,37 @@ func (s *Server) indexHandler() http.HandlerFunc {
 		taskLists, err := s.taskProvider.GetTasks(r.Context(), token)
 
 		if err != nil {
-			err = s.templates.Render(w, "error", NewErrorPageData(s.cfg.RedirectURI, http.StatusInternalServerError))
+			err = s.templates.Render(w, "error", NewErrorPageData(http.StatusInternalServerError))
 
 			log.Error(err)
 			return
 		}
 
 		metrics := todometrics.New(taskLists)
-		pageData := NewMainPageData(s.cfg.RedirectURI, metrics)
-
+		pageData := NewPageData(metrics, false)
 		err = s.templates.Render(w, "index", pageData)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+	}
+}
+
+func (s *Server) tasksHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := r.Context().Value("token").(string)
+		taskLists, err := s.taskProvider.GetTasks(r.Context(), token)
+
+		if err != nil {
+			err = s.templates.Render(w, "error", NewErrorPageData(http.StatusInternalServerError))
+
+			log.Error(err)
+			return
+		}
+
+		metrics := todometrics.New(taskLists)
+		pageData := NewPageData(metrics, true)
+		err = s.templates.Render(w, "tasks", pageData)
 		if err != nil {
 			log.Error(err)
 			return

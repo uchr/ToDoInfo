@@ -439,7 +439,7 @@ func TestGetTopOldestTasks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := New(tt.taskLists)
-			tasks := m.GetTopOldestTasks(tt.taskCount)
+			tasks := m.GetTopTasksByAge(tt.taskCount)
 
 			assert.Equal(t, tt.expectedResult, tasks)
 		})

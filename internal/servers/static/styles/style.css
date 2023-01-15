@@ -17,6 +17,11 @@ body {
     font-weight: bold;
 }
 
+.upcoming-task {
+    font-family: 'Nunito', sans-serif;
+    color: #A8A8A8;
+}
+
 .bold {
     font-family: 'Nunito', sans-serif;
     font-weight: bold;
@@ -49,4 +54,8 @@ table, tbody, tr, th, td{
 
 .small-column {
     width: 25%;
+}
+
+.medium-column {
+    width: 30%;
 }

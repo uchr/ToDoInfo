@@ -54,13 +54,16 @@ func (l *Metrics) GetListAges() ListAges {
 	return listAges
 }
 
-func (l *Metrics) GetTopOldestTasks(n int) []TaskRottennessInfo {
-	m := n
-	if m >= len(l.sortedTasks) {
-		m = len(l.sortedTasks)
+func (l *Metrics) GetTopTasksByAge(n int) []TaskRottennessInfo {
+	if n >= len(l.sortedTasks) {
+		n = len(l.sortedTasks)
 	}
 
-	return l.sortedTasks[:m]
+	return l.sortedTasks[:n]
+}
+
+func (l *Metrics) GetSortedTasks() []TaskRottennessInfo {
+	return l.sortedTasks
 }
 
 func (l *Metrics) GetOldestTaskForList() map[string]TaskRottennessInfo {
