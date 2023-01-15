@@ -14,6 +14,20 @@ func getDateFromNow(dayBefore int, hourBefore int) time.Time {
 	return time.Now().Add(d)
 }
 
+func clearExactAge(t []TaskRottennessInfo) {
+	for i := range t {
+		t[i].exactAge = 0
+	}
+}
+
+func clearExactAgeForMap(t map[string]TaskRottennessInfo) {
+	for k := range t {
+		task := t[k]
+		task.exactAge = 0
+		t[k] = task
+	}
+}
+
 func TestGetTaskAge(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -49,7 +63,7 @@ func TestGetTaskAge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			age := getTaskAge(todo.Task{
+			age, _ := getTaskAge(todo.Task{
 				CreatedDateTime:      tt.taskTime,
 				LastModifiedDateTime: tt.taskTime,
 			})
@@ -161,6 +175,7 @@ func TestGetSortedTasks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tasks := getSortedTasks(tt.taskLists)
+			clearExactAge(tasks)
 
 			assert.Equal(t, tt.expectedResult, tasks)
 		})
@@ -440,6 +455,7 @@ func TestGetTopOldestTasks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := New(tt.taskLists)
 			tasks := m.GetTopTasksByAge(tt.taskCount)
+			clearExactAge(tasks)
 
 			assert.Equal(t, tt.expectedResult, tasks)
 		})
@@ -534,6 +550,7 @@ func TestGetOldestTaskForList(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := New(tt.taskLists)
 			tasks := m.GetOldestTaskForList()
+			clearExactAgeForMap(tasks)
 
 			assert.Equal(t, tt.expectedResult, tasks)
 		})
@@ -702,6 +719,7 @@ func TestGetRottenTasks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := New(tt.taskLists)
 			tasks := m.GetRottenTasks(tt.minRottenness)
+			clearExactAge(tasks)
 
 			assert.Equal(t, tt.expectedResult, tasks)
 		})

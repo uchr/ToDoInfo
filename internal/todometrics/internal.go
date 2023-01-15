@@ -31,7 +31,7 @@ func getTaskRottenness(age int) TaskRottenness {
 	return ZombieTaskRottenness
 }
 
-func getTaskAge(task todo.Task) int {
+func getTaskAge(task todo.Task) (int, time.Duration) {
 	taskTime := task.CreatedDateTime
 	if task.DueDateTime != nil {
 		taskTime = *task.DueDateTime
@@ -40,27 +40,29 @@ func getTaskAge(task todo.Task) int {
 	currentTime := time.Now()
 	delta := currentTime.Sub(taskTime)
 	if delta <= 0 {
-		return 0
+		return 0, 0
 	}
-	return int(delta.Hours() / 24)
+	return int(delta.Hours() / 24), delta
 }
 
 func getSortedTasks(taskLists []todo.TaskList) []TaskRottennessInfo {
 	result := make([]TaskRottennessInfo, 0)
 	for _, taskList := range taskLists {
 		for _, task := range taskList.Tasks {
-			age := getTaskAge(task)
+			age, exactAge := getTaskAge(task)
 			result = append(result, TaskRottennessInfo{
 				TaskName:   task.Title,
 				TaskList:   taskList.Name,
 				Age:        age,
 				Rottenness: getTaskRottenness(age),
+
+				exactAge: exactAge,
 			})
 		}
 	}
 
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].Age > result[j].Age
+		return result[i].exactAge > result[j].exactAge
 	})
 
 	return result

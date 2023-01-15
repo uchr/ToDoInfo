@@ -2,6 +2,7 @@ package todometrics
 
 import (
 	"sort"
+	"time"
 
 	"github.com/uchr/ToDoInfo/internal/todo"
 )
@@ -33,7 +34,7 @@ func (l *Metrics) GetListAges() ListAges {
 	for _, taskList := range l.lists {
 		ages[taskList.Name] = 0
 		for _, task := range taskList.Tasks {
-			age := getTaskAge(task)
+			age, _ := getTaskAge(task)
 			sum += age
 			ages[taskList.Name] += age
 		}
@@ -74,21 +75,22 @@ func (l *Metrics) GetOldestTaskForList() map[string]TaskRottennessInfo {
 			continue
 		}
 
-		maxAge := 0
+		var maxExactAge time.Duration
 		taskIndex := 0
 		for i, task := range taskList.Tasks {
-			age := getTaskAge(task)
-			if age >= maxAge {
-				maxAge = age
+			_, exactAge := getTaskAge(task)
+			if exactAge >= maxExactAge {
+				maxExactAge = exactAge
 				taskIndex = i
 			}
 		}
-		taskAge := getTaskAge(taskList.Tasks[taskIndex])
+		taskAge, exactAge := getTaskAge(taskList.Tasks[taskIndex])
 		result[taskList.Name] = TaskRottennessInfo{
 			TaskName:   taskList.Tasks[taskIndex].Title,
 			TaskList:   taskList.Name,
 			Age:        taskAge,
 			Rottenness: getTaskRottenness(taskAge),
+			exactAge:   exactAge,
 		}
 	}
 	return result
