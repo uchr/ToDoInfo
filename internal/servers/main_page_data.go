@@ -11,30 +11,35 @@ type ListAge struct {
 	OldestTaskAge int
 }
 
-type TaskPageData struct {
-	TaskName       string
-	TaskList       string
-	Age            int
-	TaskRottenness string
+type Task struct {
+	Task  todometrics.TaskRottennessInfo
+	Emoji string
 }
 
-type MainPageData struct {
-	RedirectURI string
-
+type PageData struct {
 	TotalAge int
 	ListAges []ListAge
 
-	OldestTasks []TaskPageData
-	RottenTasks []TaskPageData
+	RottenTasks   []Task
+	UpcomingTasks []Task
 }
 
-func NewMainPageData(redirectURI string, metrics *todometrics.Metrics) MainPageData {
-	pageData := MainPageData{RedirectURI: redirectURI}
+func NewPageData(metrics *todometrics.Metrics, fullTaskList bool) PageData {
+	const numberOfUpcomingTasks = 3
+	pageData := PageData{}
 
 	listAges := metrics.GetListAges()
-	oldestTasks := metrics.GetTopOldestTasks(5)
-	rottenTasks := metrics.GetRottenTasks(todometrics.TiredTaskRottenness)
 	oldestTaskForLists := metrics.GetOldestTaskForList()
+
+	rottenTasks := metrics.GetRottenTasks(todometrics.TiredTaskRottenness)
+
+	tasks := metrics.GetSortedTasks()
+	var upcomingTasks []todometrics.TaskRottennessInfo
+	if fullTaskList {
+		upcomingTasks = tasks
+	} else {
+		upcomingTasks = tasks[len(rottenTasks) : len(rottenTasks)+numberOfUpcomingTasks]
+	}
 
 	pageData.TotalAge = listAges.TotalAge
 	for _, listAge := range listAges.Ages {
@@ -46,21 +51,17 @@ func NewMainPageData(redirectURI string, metrics *todometrics.Metrics) MainPageD
 		})
 	}
 
-	for _, task := range oldestTasks {
-		pageData.OldestTasks = append(pageData.OldestTasks, TaskPageData{
-			TaskName:       task.TaskName,
-			TaskList:       task.TaskList,
-			Age:            task.Age,
-			TaskRottenness: task.Rottenness.String(),
+	for _, task := range upcomingTasks {
+		pageData.UpcomingTasks = append(pageData.UpcomingTasks, Task{
+			Task:  task,
+			Emoji: task.Rottenness.String(),
 		})
 	}
 
 	for _, task := range rottenTasks {
-		pageData.RottenTasks = append(pageData.RottenTasks, TaskPageData{
-			TaskName:       task.TaskName,
-			TaskList:       task.TaskList,
-			Age:            task.Age,
-			TaskRottenness: task.Rottenness.String(),
+		pageData.RottenTasks = append(pageData.RottenTasks, Task{
+			Task:  task,
+			Emoji: task.Rottenness.String(),
 		})
 	}
 

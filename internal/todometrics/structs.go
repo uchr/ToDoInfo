@@ -1,6 +1,10 @@
 package todometrics
 
-import "github.com/uchr/ToDoInfo/internal/todo"
+import (
+	"time"
+
+	"github.com/uchr/ToDoInfo/internal/todo"
+)
 
 type TaskRottenness int
 
@@ -32,6 +36,8 @@ type TaskRottennessInfo struct {
 	TaskList   string
 	Age        int
 	Rottenness TaskRottenness
+
+	exactAge time.Duration
 }
 
 type Metrics struct {

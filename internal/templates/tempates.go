@@ -25,6 +25,11 @@ func NewTemplates() (*templateSystem, error) {
 	} else {
 		return nil, err
 	}
+	if t, err := loadTemplate("templates/tasks.html"); err == nil {
+		ts.templates["tasks"] = t
+	} else {
+		return nil, err
+	}
 	if t, err := loadTemplate("templates/auth.html"); err == nil {
 		ts.templates["auth"] = t
 	} else {

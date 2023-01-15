@@ -6,14 +6,9 @@ import (
 )
 
 type ErrorPageData struct {
-	RedirectURI  string
 	ErrorMessage string
 }
 
-func NewErrorPageData(redirectURI string, errorCode int) ErrorPageData {
-	pageData := ErrorPageData{RedirectURI: redirectURI}
-
-	pageData.ErrorMessage = fmt.Sprintf("Error %d. %s", errorCode, http.StatusText(errorCode))
-
-	return pageData
+func NewErrorPageData(errorCode int) ErrorPageData {
+	return ErrorPageData{ErrorMessage: fmt.Sprintf("Error %d. %s", errorCode, http.StatusText(errorCode))}
 }
