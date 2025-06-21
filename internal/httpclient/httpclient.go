@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
-
-	"github.com/uchr/ToDoInfo/internal/log"
 )
 
 func GetResponseError(data []byte) error {
@@ -49,7 +48,7 @@ func GetAuthError(data []byte) error {
 	return &ResponseError{errInfo.ErrorDescription}
 }
 
-func Post(ctx context.Context, requestUrl string, values url.Values) ([]byte, error) {
+func Post(ctx context.Context, logger *slog.Logger, requestUrl string, values url.Values) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "POST", requestUrl, strings.NewReader(values.Encode()))
 	if err != nil {
 		return nil, err
@@ -65,7 +64,7 @@ func Post(ctx context.Context, requestUrl string, values url.Values) ([]byte, er
 	defer func() {
 		err := response.Body.Close()
 		if err != nil {
-			log.Error(err)
+			logger.ErrorContext(ctx, "Error closing response body", slog.Any("error", err))
 		}
 	}()
 
@@ -77,7 +76,7 @@ func Post(ctx context.Context, requestUrl string, values url.Values) ([]byte, er
 	return body, nil
 }
 
-func GetRequest(ctx context.Context, requestUrl string, token string) ([]byte, error) {
+func GetRequest(ctx context.Context, logger *slog.Logger, requestUrl string, token string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", requestUrl, nil)
 	if err != nil {
 		return nil, err
@@ -94,7 +93,7 @@ func GetRequest(ctx context.Context, requestUrl string, token string) ([]byte, e
 	defer func() {
 		err := response.Body.Close()
 		if err != nil {
-			log.Error(err)
+			logger.ErrorContext(ctx, "Error closing response body", slog.Any("error", err))
 		}
 	}()
 
