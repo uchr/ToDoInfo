@@ -4,21 +4,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**ToDo Info** is a Go web application that helps users analyze old tasks from Microsoft ToDo. It connects to Microsoft Graph API to fetch tasks, calculates task ages, and categorizes them by "rottenness" levels:
+**ToDo Info** is a beautiful Go CLI application that helps users analyze old tasks from Microsoft ToDo. It connects to Microsoft Graph API to fetch tasks, calculates task ages, and categorizes them by "rottenness" levels:
 - 😊 Fresh (0-2 days)
 - 😏 Ripe (3-6 days) 
 - 🥱 Tired (7-13 days)
 - 🤢 Zombie (14+ days)
 
-The app displays metrics like total task ages, oldest tasks per list, and filtered views of old tasks.
+The CLI displays beautiful statistics with colored output, progress bars, charts, and comprehensive task analysis.
 
 ## Development Commands
 
 ### Build and Run
 ```bash
-go run cmd/web/main.go        # Run web server
-go run cmd/example-page/main.go  # Run example page with sample data
-go build -o todoinfo cmd/web/main.go  # Build binary
+go run main.go               # Run CLI application (shows help)
+go run cmd/cli/main.go       # Alternative entry point
+go build -o todoinfo main.go # Build binary
+./todoinfo --help           # Show CLI help
+```
+
+### CLI Usage
+```bash
+# Authentication
+./todoinfo login
+./todoinfo logout
+./todoinfo status
+
+# Task Analysis
+./todoinfo stats
 ```
 
 ### Testing
@@ -38,41 +50,64 @@ go mod download               # Download dependencies
 
 ### Core Components
 
-- **cmd/web/main.go**: Main web application entry point
-- **cmd/example-page/main.go**: Example/demo application with sample data
-- **internal/servers/**: HTTP server setup with Chi router, handles authentication middleware and route definitions
+- **cmd/cli/main.go**: Main CLI application entry point
+- **internal/cli/**: Modern CLI interface with Cobra framework and beautiful output
+- **internal/auth/**: Azure AD authentication with token caching for CLI
 - **internal/todometrics/**: Core business logic for task age calculation and rottenness categorization
-- **internal/todoclient/**: Microsoft Graph API client for fetching ToDo tasks
-- **internal/login/**: OAuth2 authentication flow with Microsoft
+- **internal/todoclient/**: Microsoft Graph SDK client for fetching ToDo tasks
 - **internal/config/**: Environment-based configuration using .env files
-- **internal/templates/**: HTML template system with embedded static assets
+- **internal/todo/**: Legacy task structures for compatibility
 
 ### Key Dependencies
 
-- **Chi v5**: HTTP router and middleware
-- **Gorilla Sessions**: Session management for OAuth tokens
+- **Cobra**: Modern CLI framework with commands and flags
+- **Pterm**: Beautiful terminal output with colors, progress bars, and charts
+- **Viper**: Configuration management with multiple sources
+- **Azure SDK**: Official Azure authentication and Graph API client
+- **Microsoft Graph SDK**: Official Microsoft Graph API SDK for Go
 - **Zerolog**: Structured logging
-- **Microsoft Graph API**: Task data source via OAuth2
 
 ### Authentication Flow
 
-1. User accesses protected route → redirected to `/auth`
-2. OAuth2 flow to Microsoft with `User.Read Tasks.ReadWrite` scopes
-3. Token stored in encrypted session cookie
-4. Middleware validates token expiration on each request
-5. Tasks fetched from Microsoft Graph API using stored token
+1. User runs `todoinfo login --client-id CLIENT_ID`
+2. Browser-based OAuth2 flow to Microsoft with `User.Read Tasks.ReadWrite` scopes
+3. Token cached locally in `.azure-cli-cache` directory
+4. Subsequent commands use cached token automatically
+5. Token refreshed automatically when expired
+6. Use `todoinfo logout` to clear cached credentials
 
-### Required Environment Variables
+### Required Configuration
 
-Create a `.env` file with:
+Option 1 - `.env` file (recommended):
+```bash
+# Create .env file in project root
+echo "AZURE_CLIENT_ID=your_azure_client_id" > .env
+./todoinfo stats
 ```
-CLIENT_ID=your_microsoft_app_client_id
-CLIENT_SECRET=your_microsoft_app_client_secret
-HOST_URL=http://localhost:8080/
-ADDR=:8080
-SESSION_KEY=your_session_encryption_key
-LOG_FOLDER=./logs
+
+Option 2 - Command line flag:
+```bash
+./todoinfo stats --client-id YOUR_AZURE_CLIENT_ID
 ```
+
+Option 3 - Environment variable:
+```bash
+export AZURE_CLIENT_ID=your_azure_client_id
+./todoinfo stats
+```
+
+Option 4 - Config file `~/.todoinfo.yaml`:
+```yaml
+client-id: your_azure_client_id
+```
+
+### Setting up Azure App Registration
+
+1. Go to Azure Portal → App Registrations
+2. Create new registration with redirect URI: `http://localhost:8080`
+3. Note the Application (client) ID
+4. Grant `Tasks.ReadWrite` and `User.Read` permissions
+5. Use the client ID with todoinfo CLI
 
 ### Task Age Calculation
 
