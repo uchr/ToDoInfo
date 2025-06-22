@@ -40,7 +40,6 @@ func TestJSONStorage(t *testing.T) {
 				{Title: "Personal", Age: 40},
 			},
 		},
-		MaxAge:    30,
 		TaskCount: 5,
 	}
 
@@ -62,10 +61,6 @@ func TestJSONStorage(t *testing.T) {
 
 	if latest.GlobalStats.TotalAge != 100 {
 		t.Errorf("Expected TotalAge 100, got %d", latest.GlobalStats.TotalAge)
-	}
-
-	if latest.MaxAge != 30 {
-		t.Errorf("Expected MaxAge 30, got %d", latest.MaxAge)
 	}
 
 	// Test GetTimeSeriesData

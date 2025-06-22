@@ -83,8 +83,8 @@ func runStats(cmd *cobra.Command, args []string) error {
 	// Display statistics
 	displayStatistics(metrics, tasks)
 
-	// Display historical graph at the bottom
-	displayHistoricalGraph()
+	// Display historical graphs at the bottom
+	displayHistoricalGraphs()
 
 	return nil
 }
@@ -166,6 +166,7 @@ func displayGlobalStats(metrics *todometrics.Metrics, allTasks []todo.TaskList) 
 	}
 
 	globalData := pterm.TableData{
+		{"Tasks", fmt.Sprintf("%d", len(allTasksInfo))},
 		{"Age", fmt.Sprintf("%d days", totalAge)},
 	}
 
@@ -177,7 +178,7 @@ func displayListAges(metrics *todometrics.Metrics) {
 
 	listAges := metrics.GetListAges()
 
-	listData := pterm.TableData{{"List Name", "Total Age (days)", "Share"}}
+	listData := pterm.TableData{{"List Name", "Total Age (days)", "Task Count", "Share"}}
 
 	for _, listAge := range listAges.Ages {
 		percentage := 0.0
@@ -188,6 +189,7 @@ func displayListAges(metrics *todometrics.Metrics) {
 		listData = append(listData, []string{
 			listAge.Title,
 			strconv.Itoa(listAge.Age),
+			strconv.Itoa(listAge.TaskCount),
 			fmt.Sprintf("%.1f%%", percentage),
 		})
 	}
@@ -232,27 +234,25 @@ func storeStatistics(ctx context.Context, metrics *todometrics.Metrics, tasks []
 	if err != nil {
 		return fmt.Errorf("failed to get user home directory: %w", err)
 	}
-	
+
 	dataDir := filepath.Join(homeDir, ".todoinfo", "data")
-	
+
 	// Create storage
 	store, err := storage.NewJSONStorage(dataDir)
 	if err != nil {
 		return fmt.Errorf("failed to create storage: %w", err)
 	}
 	defer store.Close()
-	
+
 	// Calculate max age and task count
 	allTasks := metrics.GetSortedTasks()
-	maxAge := 0
 	totalAge := 0
 	if len(allTasks) > 0 {
-		maxAge = allTasks[0].Age // First task is the oldest
 		for _, task := range allTasks {
 			totalAge += task.Age
 		}
 	}
-	
+
 	// Create snapshot
 	snapshot := storage.StatsSnapshot{
 		Timestamp: time.Now(),
@@ -261,39 +261,45 @@ func storeStatistics(ctx context.Context, metrics *todometrics.Metrics, tasks []
 			TaskCount: len(allTasks),
 		},
 		ListAges:  metrics.GetListAges(),
-		MaxAge:    maxAge,
 		TaskCount: len(allTasks),
 	}
-	
+
 	return store.Store(ctx, snapshot)
 }
 
-// displayHistoricalGraph displays the historical graph at the bottom
-func displayHistoricalGraph() {
+// displayHistoricalGraphs displays the historical graphs at the bottom
+func displayHistoricalGraphs() {
 	// Create data directory path
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return // Silently skip if can't get home dir
 	}
-	
+
 	dataDir := filepath.Join(homeDir, ".todoinfo", "data")
-	
+
 	// Create storage
 	store, err := storage.NewJSONStorage(dataDir)
 	if err != nil {
 		return // Silently skip if can't create storage
 	}
 	defer store.Close()
-	
+
 	// Get time series data for the last 30 days
 	ctx := context.Background()
 	points, err := store.GetTimeSeriesData(ctx, 30)
 	if err != nil || len(points) == 0 {
 		return // Silently skip if no data
 	}
-	
-	// Create and render the graph
+
+	// Create and render the graphs
 	renderer := graph.NewASCIIGraph()
 	pterm.Println()
+
+	// First render the existing age trend graph
 	renderer.RenderTimeSeriesGraph(points, "📈 Historical Task Age Trend (Last 30 Days)")
+
+	pterm.Println()
+
+	// Then render the new task count graph
+	renderer.RenderTaskCountGraph(points, "📈 Historical Task Count Trend (Last 30 Days)")
 }

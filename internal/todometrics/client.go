@@ -30,9 +30,11 @@ func New(taskLists []todo.TaskList) *Metrics {
 func (l *Metrics) GetListAges() ListAges {
 	sum := 0
 	ages := make(map[string]int)
+	taskCount := make(map[string]int)
 
 	for _, taskList := range l.lists {
 		ages[taskList.Name] = 0
+		taskCount[taskList.Name] = len(taskList.Tasks)
 		for _, task := range taskList.Tasks {
 			age, _ := getTaskAge(task)
 			sum += age
@@ -42,7 +44,7 @@ func (l *Metrics) GetListAges() ListAges {
 
 	listAges := ListAges{TotalAge: sum}
 	for listName, listAge := range ages {
-		listAges.Ages = append(listAges.Ages, ListAge{Title: listName, Age: listAge})
+		listAges.Ages = append(listAges.Ages, ListAge{Title: listName, Age: listAge, TaskCount: taskCount[listName]})
 	}
 
 	sort.Slice(listAges.Ages, func(i, j int) bool {
