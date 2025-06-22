@@ -61,7 +61,12 @@ func init() {
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	// Load .env file if it exists
-	_ = godotenv.Load()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		logger.Error("failed to get user home directory", slog.String("error", err.Error()))
+	}
+	_ = godotenv.Load(home + "/.todoinfo/.env")
+	_ = godotenv.Load(".env")
 
 	if cfgFile != "" {
 		// Use config file from the flag.
