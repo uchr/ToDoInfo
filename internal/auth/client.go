@@ -2,190 +2,174 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
+	"path/filepath"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache"
 	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
 )
 
+// ---------- public API ----------------------------------------------------
+
 // AuthClient provides Azure authentication and Microsoft Graph access
 type AuthClient struct {
-	config       *Config
-	credential   azcore.TokenCredential
-	graphClient  *msgraphsdk.GraphServiceClient
-	tokenManager *TokenManager
+	config      *Config
+	credential  azcore.TokenCredential
+	graphClient *msgraphsdk.GraphServiceClient
+
+	recordPath string // ~/.<cacheDir>/auth_record.json (tiny non-secret file)
 }
 
-// CachedTokenCredential wraps a cached token as an azcore.TokenCredential
-type CachedTokenCredential struct {
-	token *TokenCache
-}
-
-// GetToken returns the cached token
-func (c *CachedTokenCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	if c.token.IsExpired() {
-		return azcore.AccessToken{}, fmt.Errorf("cached token is expired")
+// NewAuthClient constructs a client and prepares the record-file path.
+func NewAuthClient(cfg *Config) (*AuthClient, error) {
+	if err := validateConfig(cfg); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
 	}
-	
-	return azcore.AccessToken{
-		Token:     c.token.AccessToken,
-		ExpiresOn: c.token.ExpiresAt,
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve HOME: %w", err)
+	}
+	cacheDir := filepath.Join(home, cfg.CacheDir)
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+		return nil, fmt.Errorf("create cache dir: %w", err)
+	}
+	return &AuthClient{
+		config:     cfg,
+		recordPath: filepath.Join(cacheDir, "auth_record.json"),
 	}, nil
 }
 
-// NewAuthClient creates a new Azure authentication client
-func NewAuthClient(config *Config) (*AuthClient, error) {
-	if err := validateConfig(config); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
+// Authenticate guarantees that a working credential & Graph client exist.
+func (ac *AuthClient) Authenticate(ctx context.Context, logger *slog.Logger) error {
+	if ac.credential != nil {
+		// already authenticated in this process
+		return nil
 	}
 
-	tokenManager := NewTokenManager(config.CacheDir)
-
-	client := &AuthClient{
-		config:       config,
-		tokenManager: tokenManager,
-	}
-
-	return client, nil
-}
-
-// Authenticate performs browser-based Azure AD authentication
-func (ac *AuthClient) Authenticate(ctx context.Context) error {
-	// Try to load cached token first
-	cachedToken, err := ac.tokenManager.LoadToken()
-	if err == nil && !cachedToken.IsExpired() {
-		log.Println("✅ Using cached authentication token")
-		
-		// Create credential from cached token
-		ac.credential = &CachedTokenCredential{token: cachedToken}
-		
-		// Initialize graph client and test the token
-		if err := ac.initializeGraphClient(); err != nil {
-			log.Printf("Warning: cached token failed, falling back to browser auth: %v", err)
-			// Clear invalid cached token and fall through to browser auth
-			if clearErr := ac.tokenManager.ClearToken(); clearErr != nil {
-				log.Printf("Warning: failed to clear invalid token cache: %v", clearErr)
-			}
-		} else {
-			// Cached token works, we're done
-			return nil
-		}
-	}
-
-	log.Println("No valid cached token found, starting browser authentication...")
-	fmt.Println("🌐 Opening browser for authentication...")
-
-	// Create browser credential with proper redirect URI
-	options := &azidentity.InteractiveBrowserCredentialOptions{
-		ClientID:    ac.config.ClientID,
-		TenantID:    ac.config.TenantID,
-		RedirectURL: fmt.Sprintf("http://localhost:%d", ac.config.Port),
-	}
-
-	credential, err := azidentity.NewInteractiveBrowserCredential(options)
+	cred, err := ac.buildCredential(ctx, logger)
 	if err != nil {
-		return fmt.Errorf("failed to create browser credential: %w", err)
+		return fmt.Errorf("build credential: %w", err)
+	}
+	// quick sanity check: can we get a token?
+	if _, err = cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: ac.config.Scopes}); err != nil {
+		return fmt.Errorf("token test failed: %w", err)
 	}
 
-	ac.credential = credential
-
-	// Test the credential by getting a token
-	tokenOptions := policy.TokenRequestOptions{
-		Scopes: ac.config.Scopes,
-	}
-
-	token, err := credential.GetToken(ctx, tokenOptions)
-	if err != nil {
-		return fmt.Errorf("failed to get access token: %w", err)
-	}
-
-	// Cache the token
-	cachedToken = &TokenCache{
-		AccessToken: token.Token,
-		ExpiresAt:   token.ExpiresOn,
-		Scopes:      ac.config.Scopes,
-	}
-
-	if err := ac.tokenManager.SaveToken(cachedToken); err != nil {
-		log.Printf("Warning: failed to cache token: %v", err)
-	}
-
-	log.Println("✅ Authentication successful!")
-
-	// Initialize graph client
+	ac.credential = cred
 	return ac.initializeGraphClient()
 }
 
-// GetGraphClient returns the configured Microsoft Graph client
-func (ac *AuthClient) GetGraphClient() *msgraphsdk.GraphServiceClient {
-	return ac.graphClient
+// IsAuthenticated tells whether GetAccessToken would succeed without UI.
+func (ac *AuthClient) IsAuthenticated(ctx context.Context, logger *slog.Logger) bool {
+	if ac.credential == nil {
+		if err := ac.Authenticate(ctx, logger); err != nil {
+			return false
+		}
+	}
+	_, err := ac.credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: ac.config.Scopes})
+	return err == nil
 }
 
-// Logout clears the cached authentication token
-func (ac *AuthClient) Logout() error {
-	log.Println("Clearing cached authentication token...")
-	return ac.tokenManager.ClearToken()
-}
+// GetGraphClient returns the Graph SDK client (Authenticate once first).
+func (ac *AuthClient) GetGraphClient() *msgraphsdk.GraphServiceClient { return ac.graphClient }
 
-// IsAuthenticated checks if the client is currently authenticated
-func (ac *AuthClient) IsAuthenticated() bool {
-	cachedToken, err := ac.tokenManager.LoadToken()
-	return err == nil && !cachedToken.IsExpired()
-}
-
-// GetAccessToken returns the current access token for HTTP requests
+// GetAccessToken exposes a raw bearer token for HTTP libraries outside MS Graph.
 func (ac *AuthClient) GetAccessToken(ctx context.Context) (string, error) {
 	if ac.credential == nil {
-		return "", fmt.Errorf("no credential available")
+		return "", fmt.Errorf("not authenticated")
 	}
-	
-	tokenOptions := policy.TokenRequestOptions{
-		Scopes: ac.config.Scopes,
-	}
-	
-	token, err := ac.credential.GetToken(ctx, tokenOptions)
+	tok, err := ac.credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: ac.config.Scopes})
 	if err != nil {
-		return "", fmt.Errorf("failed to get access token: %w", err)
+		return "", fmt.Errorf("get token: %w", err)
 	}
-	
-	return token.Token, nil
+	return tok.Token, nil
 }
 
+// Logout forgets the browser session by deleting the AuthenticationRecord.
+func (ac *AuthClient) Logout(_ context.Context, _ *slog.Logger) error {
+	ac.credential = nil
+	ac.graphClient = nil
+	return os.Remove(ac.recordPath) // ignore “file not found”
+}
 
-// initializeGraphClient creates and configures the Microsoft Graph client
+// ---------- internal helpers ----------------------------------------------
+
+// buildCredential reuses a stored AuthenticationRecord if present;
+// otherwise it runs the interactive flow once and persists the record.
+func (ac *AuthClient) buildCredential(ctx context.Context, logger *slog.Logger) (azcore.TokenCredential, error) {
+	// 1. open the encrypted cross-platform token cache
+	pcache, err := cache.New(nil)
+	if err != nil {
+		return nil, fmt.Errorf("open persistent cache: %w", err)
+	}
+
+	// 2. try to load a previously saved record
+	var record azidentity.AuthenticationRecord
+	if data, err := os.ReadFile(ac.recordPath); err == nil {
+		if uErr := json.Unmarshal(data, &record); uErr != nil {
+			logger.WarnContext(ctx, "auth record corrupt — starting fresh", slog.Any("error", uErr))
+		}
+	}
+
+	// 3. build the credential (record may be zero-value = first run)
+	cred, err := azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{
+		TenantID:             ac.config.TenantID,
+		ClientID:             ac.config.ClientID,
+		RedirectURL:          fmt.Sprintf("http://localhost:%d", ac.config.Port),
+		Cache:                pcache,
+		AuthenticationRecord: record,
+		// DisableAutomaticAuthentication avoids double prompts if silent auth fails
+		DisableAutomaticAuthentication: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. if the record was empty we must interact once and then persist
+	if record.Username == "" {
+		logger.DebugContext(ctx, "no stored auth record — launching browser")
+		newRec, err := cred.Authenticate(
+			ctx,
+			&policy.TokenRequestOptions{Scopes: ac.config.Scopes},
+		)
+		if err != nil {
+			return nil, err
+		} else if data, err := json.Marshal(newRec); err == nil {
+			_ = os.WriteFile(ac.recordPath, data, 0600)
+		}
+	}
+	return cred, nil
+}
+
+// initializeGraphClient wires up the Microsoft Graph SDK.
 func (ac *AuthClient) initializeGraphClient() error {
-	if ac.credential == nil {
-		return fmt.Errorf("no credential available for graph client initialization")
-	}
-
-	graphClient, err := msgraphsdk.NewGraphServiceClientWithCredentials(
-		ac.credential,
-		ac.config.Scopes,
-	)
+	gc, err := msgraphsdk.NewGraphServiceClientWithCredentials(ac.credential, ac.config.Scopes)
 	if err != nil {
-		return fmt.Errorf("failed to create Graph service client: %w", err)
+		return fmt.Errorf("new graph client: %w", err)
 	}
-
-	ac.graphClient = graphClient
+	ac.graphClient = gc
 	return nil
 }
 
-// validateConfig validates the authentication configuration
-func validateConfig(config *Config) error {
-	if config.ClientID == "" {
-		return fmt.Errorf("client ID is required")
+// ---------- tiny validation helper ----------------------------------------
+
+func validateConfig(cfg *Config) error {
+	switch {
+	case cfg.ClientID == "":
+		return fmt.Errorf("client ID required")
+	case cfg.TenantID == "":
+		return fmt.Errorf("tenant ID required")
+	case cfg.Port <= 0:
+		return fmt.Errorf("port must be > 0")
+	case len(cfg.Scopes) == 0:
+		return fmt.Errorf("at least one scope required")
+	default:
+		return nil
 	}
-	if config.TenantID == "" {
-		return fmt.Errorf("tenant ID is required")
-	}
-	if config.Port <= 0 {
-		return fmt.Errorf("port must be positive")
-	}
-	if len(config.Scopes) == 0 {
-		return fmt.Errorf("at least one scope is required")
-	}
-	return nil
 }
