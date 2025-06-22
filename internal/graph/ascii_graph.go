@@ -72,6 +72,50 @@ func (g *ASCIIGraph) RenderTimeSeriesGraph(points []storage.TimeSeriesPoint, tit
 	g.renderGraph(graph, minAge, maxAge, points)
 }
 
+// RenderTaskCountGraph renders a time series graph showing task count over time
+func (g *ASCIIGraph) RenderTaskCountGraph(points []storage.TimeSeriesPoint, title string) {
+	if len(points) == 0 {
+		pterm.Info.Println("No historical data available for graph")
+		return
+	}
+
+	pterm.DefaultSection.Println(title)
+	
+	// Find min and max task count values
+	minCount, maxCount := g.findMinMaxTaskCount(points)
+	if maxCount == minCount {
+		maxCount = minCount + 1 // Avoid division by zero
+	}
+	
+	// Create the graph
+	graph := make([][]string, g.height)
+	for i := range graph {
+		graph[i] = make([]string, g.width)
+		for j := range graph[i] {
+			graph[i][j] = " "
+		}
+	}
+	
+	// Plot the points
+	for i, point := range points {
+		if i >= g.width {
+			break
+		}
+		
+		// Normalize the task count to graph height
+		normalizedCount := float64(point.TaskCount-minCount) / float64(maxCount-minCount)
+		y := int(normalizedCount * float64(g.height-1))
+		y = g.height - 1 - y // Invert Y axis (0 at bottom)
+		
+		if y >= 0 && y < g.height && i < g.width {
+			graph[y][i] = "█"
+		}
+	}
+	
+	// Render the graph with axis labels for task count
+	g.renderTaskCountGraph(graph, minCount, maxCount, points)
+}
+
 // findMinMax finds the minimum and maximum ages in the data points
 func (g *ASCIIGraph) findMinMax(points []storage.TimeSeriesPoint) (int, int) {
 	if len(points) == 0 {
@@ -87,6 +131,27 @@ func (g *ASCIIGraph) findMinMax(points []storage.TimeSeriesPoint) (int, int) {
 		}
 		if point.MaxAge > max {
 			max = point.MaxAge
+		}
+	}
+	
+	return min, max
+}
+
+// findMinMaxTaskCount finds the minimum and maximum task counts in the data points
+func (g *ASCIIGraph) findMinMaxTaskCount(points []storage.TimeSeriesPoint) (int, int) {
+	if len(points) == 0 {
+		return 0, 0
+	}
+	
+	min := points[0].TaskCount
+	max := points[0].TaskCount
+	
+	for _, point := range points {
+		if point.TaskCount < min {
+			min = point.TaskCount
+		}
+		if point.TaskCount > max {
+			max = point.TaskCount
 		}
 	}
 	
@@ -123,6 +188,39 @@ func (g *ASCIIGraph) renderGraph(graph [][]string, minAge, maxAge int, points []
 	// Legend
 	pterm.Println()
 	pterm.Printf("  %s Max task age over time (days)\n", pterm.Gray("Legend:"))
+	pterm.Printf("  %s Each column represents a day\n", pterm.Gray(""))
+}
+
+// renderTaskCountGraph renders the task count graph with axes and labels
+func (g *ASCIIGraph) renderTaskCountGraph(graph [][]string, minCount, maxCount int, points []storage.TimeSeriesPoint) {
+	// Y-axis labels (task count values)
+	yAxisWidth := len(fmt.Sprintf("%d", maxCount)) + 1
+	
+	for i := 0; i < g.height; i++ {
+		// Calculate the task count value for this row
+		normalizedPos := float64(g.height-1-i) / float64(g.height-1)
+		countValue := int(math.Round(float64(minCount) + normalizedPos*float64(maxCount-minCount)))
+		
+		// Y-axis label
+		yLabel := fmt.Sprintf("%*d", yAxisWidth, countValue)
+		
+		// Graph row
+		row := strings.Join(graph[i], "")
+		
+		pterm.Printf("%s│%s\n", pterm.LightBlue(yLabel), row)
+	}
+	
+	// X-axis
+	xAxisLine := strings.Repeat("─", g.width)
+	xAxisPadding := strings.Repeat(" ", yAxisWidth)
+	pterm.Printf("%s└%s\n", xAxisPadding, xAxisLine)
+	
+	// X-axis labels (dates)
+	g.renderXAxisLabels(points, yAxisWidth)
+	
+	// Legend
+	pterm.Println()
+	pterm.Printf("  %s Number of tasks over time\n", pterm.Gray("Legend:"))
 	pterm.Printf("  %s Each column represents a day\n", pterm.Gray(""))
 }
 

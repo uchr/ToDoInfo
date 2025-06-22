@@ -22,8 +22,9 @@ const (
 )
 
 type ListAge struct {
-	Age   int
-	Title string
+	Age       int
+	TaskCount int
+	Title     string
 }
 
 type ListAges struct {

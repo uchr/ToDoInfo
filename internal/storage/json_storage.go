@@ -88,26 +88,47 @@ func (s *JSONStorage) GetTimeSeriesData(ctx context.Context, days int) ([]TimeSe
 		return nil, err
 	}
 
-	maxAges := make(map[string]int)
+	dailyData := make(map[string]struct {
+		maxAge    int
+		taskCount int
+	})
+	
 	for _, snapshot := range snapshots {
-		if _, exists := maxAges[snapshot.Timestamp.Format("2006-01-02")]; !exists {
-			maxAges[snapshot.Timestamp.Format("2006-01-02")] = snapshot.MaxAge
+		dateKey := snapshot.Timestamp.Format("2006-01-02")
+		existing, exists := dailyData[dateKey]
+		
+		if !exists {
+			dailyData[dateKey] = struct {
+				maxAge    int
+				taskCount int
+			}{snapshot.GlobalStats.TotalAge, snapshot.TaskCount}
 		} else {
-			if snapshot.MaxAge > maxAges[snapshot.Timestamp.Format("2006-01-02")] {
-				maxAges[snapshot.Timestamp.Format("2006-01-02")] = snapshot.MaxAge
+			// Keep the maximum age and task count for the day
+			maxAge := existing.maxAge
+			if snapshot.GlobalStats.TotalAge > maxAge {
+				maxAge = snapshot.GlobalStats.TotalAge
 			}
+			taskCount := existing.taskCount
+			if snapshot.TaskCount > taskCount {
+				taskCount = snapshot.TaskCount
+			}
+			dailyData[dateKey] = struct {
+				maxAge    int
+				taskCount int
+			}{maxAge, taskCount}
 		}
 	}
 
 	var points []TimeSeriesPoint
-	for date, maxAge := range maxAges {
+	for date, data := range dailyData {
 		d, err := time.Parse("2006-01-02", date)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse date: %w", err)
 		}
 		points = append(points, TimeSeriesPoint{
-			Date:   d,
-			MaxAge: maxAge,
+			Date:      d,
+			MaxAge:    data.maxAge,
+			TaskCount: data.taskCount,
 		})
 	}
 
