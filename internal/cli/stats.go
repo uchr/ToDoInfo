@@ -4,13 +4,18 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/uchr/ToDoInfo/internal/auth"
+	"github.com/uchr/ToDoInfo/internal/graph"
+	"github.com/uchr/ToDoInfo/internal/storage"
 	"github.com/uchr/ToDoInfo/internal/todo"
 	"github.com/uchr/ToDoInfo/internal/todoclient"
 	"github.com/uchr/ToDoInfo/internal/todometrics"
@@ -54,7 +59,7 @@ func runStats(cmd *cobra.Command, args []string) error {
 
 	// Authenticate with loading spinner
 	spinner, _ := pterm.DefaultSpinner.Start("🔐 Authenticating with Microsoft...")
-	if err := authClient.Authenticate(ctx); err != nil {
+	if err := authClient.Authenticate(ctx, logger); err != nil {
 		spinner.Fail("Authentication failed")
 		return fmt.Errorf("authentication failed: %w", err)
 	}
@@ -69,8 +74,17 @@ func runStats(cmd *cobra.Command, args []string) error {
 	// Calculate metrics
 	metrics := todometrics.New(tasks)
 
+	// Store statistics for historical tracking
+	if err := storeStatistics(ctx, metrics, tasks); err != nil {
+		// Don't fail the command if storage fails, just log a warning
+		pterm.Warning.Printf("Failed to store statistics: %v\n", err)
+	}
+
 	// Display statistics
 	displayStatistics(metrics, tasks)
+
+	// Display historical graph at the bottom
+	displayHistoricalGraph()
 
 	return nil
 }
@@ -209,4 +223,77 @@ func displayTopOldestTasks(metrics *todometrics.Metrics) {
 
 func truncateString(s string, maxLen int) string {
 	return s
+}
+
+// storeStatistics stores current statistics to persistent storage
+func storeStatistics(ctx context.Context, metrics *todometrics.Metrics, tasks []todo.TaskList) error {
+	// Create data directory in user's home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	
+	dataDir := filepath.Join(homeDir, ".todoinfo", "data")
+	
+	// Create storage
+	store, err := storage.NewJSONStorage(dataDir)
+	if err != nil {
+		return fmt.Errorf("failed to create storage: %w", err)
+	}
+	defer store.Close()
+	
+	// Calculate max age and task count
+	allTasks := metrics.GetSortedTasks()
+	maxAge := 0
+	totalAge := 0
+	if len(allTasks) > 0 {
+		maxAge = allTasks[0].Age // First task is the oldest
+		for _, task := range allTasks {
+			totalAge += task.Age
+		}
+	}
+	
+	// Create snapshot
+	snapshot := storage.StatsSnapshot{
+		Timestamp: time.Now(),
+		GlobalStats: storage.GlobalStats{
+			TotalAge:  totalAge,
+			TaskCount: len(allTasks),
+		},
+		ListAges:  metrics.GetListAges(),
+		MaxAge:    maxAge,
+		TaskCount: len(allTasks),
+	}
+	
+	return store.Store(ctx, snapshot)
+}
+
+// displayHistoricalGraph displays the historical graph at the bottom
+func displayHistoricalGraph() {
+	// Create data directory path
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return // Silently skip if can't get home dir
+	}
+	
+	dataDir := filepath.Join(homeDir, ".todoinfo", "data")
+	
+	// Create storage
+	store, err := storage.NewJSONStorage(dataDir)
+	if err != nil {
+		return // Silently skip if can't create storage
+	}
+	defer store.Close()
+	
+	// Get time series data for the last 30 days
+	ctx := context.Background()
+	points, err := store.GetTimeSeriesData(ctx, 30)
+	if err != nil || len(points) == 0 {
+		return // Silently skip if no data
+	}
+	
+	// Create and render the graph
+	renderer := graph.NewASCIIGraph()
+	pterm.Println()
+	renderer.RenderTimeSeriesGraph(points, "📈 Historical Task Age Trend (Last 30 Days)")
 }
