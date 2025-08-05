@@ -2,11 +2,12 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/joho/godotenv"
-	"github.com/pterm/pterm"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -27,8 +28,11 @@ var rootCmd = &cobra.Command{
 It connects to Microsoft Graph API to fetch tasks, calculates task ages, and categorizes 
 them by "rottenness" levels with beautiful visualizations.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Verbose logging is handled by slog now
 		if verbose {
-			pterm.EnableDebugMessages()
+			logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+				Level: slog.LevelDebug,
+			}))
 		}
 	},
 }
@@ -97,7 +101,8 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		if verbose {
-			pterm.Info.Printf("Using config file: %s", viper.ConfigFileUsed())
+			infoStyleRoot := lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4"))
+			fmt.Printf("%s\n", infoStyleRoot.Render("Using config file: "+viper.ConfigFileUsed()))
 		}
 	}
 }

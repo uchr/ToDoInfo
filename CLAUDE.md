@@ -16,9 +16,8 @@ The CLI displays beautiful statistics with colored output, progress bars, charts
 
 ### Build and Run
 ```bash
-go run main.go               # Run CLI application (shows help)
-go run cmd/cli/main.go       # Alternative entry point
-go build -o todoinfo main.go # Build binary
+go run cmd/cli/main.go       # Run CLI application (shows help)
+go build -o todoinfo cmd/cli/main.go # Build binary
 ./todoinfo --help           # Show CLI help
 ```
 
@@ -30,7 +29,8 @@ go build -o todoinfo main.go # Build binary
 ./todoinfo status
 
 # Task Analysis
-./todoinfo stats
+./todoinfo stats                    # Live data (requires authentication)
+./todoinfo stats --offline          # Offline mode using stored historical data
 ```
 
 ### Testing
@@ -61,7 +61,8 @@ go mod download               # Download dependencies
 ### Key Dependencies
 
 - **Cobra**: Modern CLI framework with commands and flags
-- **Pterm**: Beautiful terminal output with colors, progress bars, and charts
+- **Lipgloss**: Beautiful terminal styling and formatting with colors, borders, and tables
+- **NimbleMarkets ntcharts**: Terminal charts library for line charts and data visualization
 - **Viper**: Configuration management with multiple sources
 - **Azure SDK**: Official Azure authentication and Graph API client
 - **Microsoft Graph SDK**: Official Microsoft Graph API SDK for Go
@@ -112,3 +113,29 @@ client-id: your_azure_client_id
 ### Task Age Calculation
 
 Task age is calculated using the most recent of `CreatedDateTime` or `LastModifiedDateTime`. Tasks can be skipped from age calculations by adding `#todo-info-skip` to the task note.
+
+### UI and Visualization
+
+The CLI uses **Charmbracelet Lipgloss** for beautiful terminal styling including:
+- Colored ASCII art banner with gradient effects
+- Styled tables with rounded borders and proper alignment
+- Consistent color scheme throughout the interface
+- Boxed content with proper spacing and margins
+
+Historical data visualization uses **NimbleMarkets ntcharts** for:
+- Beautiful braille-based line charts showing task age trends over time
+- Task count trends with linear scaling for accurate data interpretation
+- Interactive charts with proper axes labels and data range information
+- 90-day historical tracking stored in `~/.todoinfo/data/` as JSON snapshots
+
+### Offline Mode
+
+The CLI includes an `--offline` flag for using stored data without fetching new statistics:
+```bash
+./todoinfo stats --offline
+```
+This mode uses existing historical data from `~/.todoinfo/data/` without requiring authentication, perfect for:
+- Viewing previously stored statistics without API calls
+- Testing chart functionality with real data
+- Development and debugging
+- Quick access to task analysis when offline

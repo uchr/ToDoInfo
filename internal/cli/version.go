@@ -3,11 +3,20 @@ package cli
 import (
 	"fmt"
 
-	"github.com/pterm/pterm"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
 var Version = "2.0.0" // CLI version
+
+var (
+	magentaStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF79C6")).Bold(true)
+	grayStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4"))
+	greenStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B"))
+	whiteStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#F8F8F2"))
+	blueStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#8BE9FD"))
+	infoStyleVer = lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4"))
+)
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
@@ -21,18 +30,21 @@ func init() {
 }
 
 func runVersion(cmd *cobra.Command, args []string) {
-	// Create a beautiful version display
-	pterm.DefaultCenter.WithCenterEachLineSeparately().Println(
-		pterm.LightCyan("┌─────────────────────────────────────┐"),
-		pterm.LightCyan("│")+" "+pterm.LightMagenta("ToDo Info CLI")+"                     "+pterm.LightCyan("│"),
-		pterm.LightCyan("│")+" "+pterm.Gray("Beautiful Microsoft ToDo Analysis")+" "+pterm.LightCyan("│"),
-		pterm.LightCyan("│")+"                                     "+pterm.LightCyan("│"),
-		pterm.LightCyan("│")+" "+pterm.Green("Version: ")+pterm.White(Version)+"                    "+pterm.LightCyan("│"),
-		pterm.LightCyan("│")+" "+pterm.Blue("Built with: Go + Cobra + Pterm")+"     "+pterm.LightCyan("│"),
-		pterm.LightCyan("└─────────────────────────────────────┘"),
-	)
-	
+	// Create a beautiful version display using lipgloss
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#8BE9FD")).
+		Padding(1, 2).
+		Margin(1, 0)
+
+	content := magentaStyle.Render("ToDo Info CLI") + "\n" +
+		grayStyle.Render("Beautiful Microsoft ToDo Analysis") + "\n\n" +
+		greenStyle.Render("Version: ") + whiteStyle.Render(Version) + "\n" +
+		blueStyle.Render("Built with: Go + Cobra + Lipgloss")
+
+	fmt.Println(lipgloss.Place(80, 1, lipgloss.Center, lipgloss.Center, box.Render(content)))
+
 	fmt.Println()
-	pterm.Info.Println("🚀 Modern CLI transformation complete!")
-	pterm.Info.Println("📊 Get started with: todoinfo stats --client-id YOUR_ID")
+	fmt.Println(infoStyleVer.Render("🚀 Modern CLI transformation complete!"))
+	fmt.Println(infoStyleVer.Render("📊 Get started with: todoinfo stats --client-id YOUR_ID"))
 }

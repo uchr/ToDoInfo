@@ -3,11 +3,17 @@ package cli
 import (
 	"fmt"
 
-	"github.com/pterm/pterm"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/uchr/ToDoInfo/internal/auth"
+)
+
+var (
+	successStyleAuth = lipgloss.NewStyle().Foreground(lipgloss.Color("#50FA7B"))
+	errorStyleAuth = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
+	infoStyleAuth = lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4"))
 )
 
 var loginCmd = &cobra.Command{
@@ -55,7 +61,7 @@ func runLogin(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("client-id is required (use --client-id flag or AZURE_CLIENT_ID env var)")
 	}
 
-	pterm.Info.Println("🔐 Logging in to Microsoft account...")
+	fmt.Println(infoStyleAuth.Render("🔐 Logging in to Microsoft account..."))
 
 	authClient, err := createAuthClient(clientID)
 	if err != nil {
@@ -63,16 +69,16 @@ func runLogin(cmd *cobra.Command, args []string) error {
 	}
 
 	if authClient.IsAuthenticated(ctx, logger) {
-		pterm.Success.Println("✅ Already authenticated!")
+		fmt.Println(successStyleAuth.Render("✓ Already authenticated!"))
 		return nil
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Authenticating...")
+	fmt.Print(infoStyleAuth.Render("Authenticating..."))
 	if err := authClient.Authenticate(ctx, logger); err != nil {
-		spinner.Fail("Authentication failed")
+		fmt.Println(" " + errorStyleAuth.Render("✗ Authentication failed"))
 		return fmt.Errorf("authentication failed: %w", err)
 	}
-	spinner.Success("✅ Login successful!")
+	fmt.Println(" " + successStyleAuth.Render("✓ Login successful!"))
 
 	return nil
 }
@@ -90,12 +96,12 @@ func runLogout(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create auth client: %w", err)
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Logging out...")
+	fmt.Print(infoStyleAuth.Render("Logging out..."))
 	if err := authClient.Logout(ctx, logger); err != nil {
-		spinner.Fail("Logout failed")
+		fmt.Println(" " + errorStyleAuth.Render("✗ Logout failed"))
 		return fmt.Errorf("logout failed: %w", err)
 	}
-	spinner.Success("✅ Logged out successfully!")
+	fmt.Println(" " + successStyleAuth.Render("✓ Logged out successfully!"))
 
 	return nil
 }
@@ -114,10 +120,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	if authClient.IsAuthenticated(ctx, logger) {
-		pterm.Success.Println("✅ Authenticated")
+		fmt.Println(successStyleAuth.Render("✓ Authenticated"))
 	} else {
-		pterm.Error.Println("❌ Not authenticated")
-		pterm.Info.Println("Run 'todoinfo login' to authenticate")
+		fmt.Println(errorStyleAuth.Render("✗ Not authenticated"))
+		fmt.Println(infoStyleAuth.Render("Run 'todoinfo login' to authenticate"))
 	}
 
 	return nil

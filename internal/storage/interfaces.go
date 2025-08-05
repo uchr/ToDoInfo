@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/uchr/ToDoInfo/internal/todo"
 	"github.com/uchr/ToDoInfo/internal/todometrics"
 )
 
@@ -13,6 +14,8 @@ type StatsSnapshot struct {
 	GlobalStats GlobalStats          `json:"global_stats"`
 	ListAges    todometrics.ListAges `json:"list_ages"`
 	TaskCount   int                  `json:"task_count"`
+	// New field for full task data (optional for backward compatibility)
+	TaskLists []todo.TaskList `json:"task_lists,omitempty"`
 }
 
 // GlobalStats represents global statistics
