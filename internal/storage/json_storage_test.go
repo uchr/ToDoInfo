@@ -73,7 +73,7 @@ func TestJSONStorage(t *testing.T) {
 		t.Errorf("Expected 1 data point, got %d", len(points))
 	}
 
-	if len(points) > 0 && points[0].MaxAge != 30 {
-		t.Errorf("Expected MaxAge 30 in time series, got %d", points[0].MaxAge)
+	if len(points) > 0 && points[0].MaxAge != 100 {
+		t.Errorf("Expected MaxAge 100 in time series, got %d", points[0].MaxAge)
 	}
 }

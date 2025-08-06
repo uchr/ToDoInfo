@@ -265,12 +265,14 @@ func TestGetListAges(t *testing.T) {
 				TotalAge: 35,
 				Ages: []ListAge{
 					{
-						Title: "List2",
-						Age:   24,
+						Title:     "List2",
+						Age:       24,
+						TaskCount: 3,
 					},
 					{
-						Title: "List1",
-						Age:   11,
+						Title:     "List1",
+						Age:       11,
+						TaskCount: 2,
 					},
 				},
 			},
