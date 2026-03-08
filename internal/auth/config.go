@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"time"
 )
 
@@ -12,6 +13,11 @@ type Config struct {
 	CacheDir string
 	Port     int
 	Timeout  time.Duration
+
+	// Headless enables Device Code Flow instead of interactive browser auth.
+	Headless bool
+	// DeviceCodeCallback is called with the user prompt message during device code auth.
+	DeviceCodeCallback func(ctx context.Context, message string)
 }
 
 // DefaultConfig returns a default configuration for MS TODO access with personal accounts
@@ -49,5 +55,12 @@ func (c *Config) WithCacheDir(dir string) *Config {
 // WithPort sets custom port for local callback server
 func (c *Config) WithPort(port int) *Config {
 	c.Port = port
+	return c
+}
+
+// WithHeadless enables device code flow for headless/server environments.
+func (c *Config) WithHeadless(callback func(ctx context.Context, message string)) *Config {
+	c.Headless = true
+	c.DeviceCodeCallback = callback
 	return c
 }

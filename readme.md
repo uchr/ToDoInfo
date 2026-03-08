@@ -1,75 +1,68 @@
-# 📊 ToDo Info CLI
+# 📊 ToDo Info
 
-A beautiful command-line tool for analyzing your Microsoft ToDo tasks! Track task ages, identify procrastination patterns, and get insights into your productivity habits.
-
-
-## 🚀 Quick Start
-
-### 1. Install
-```bash
-git clone https://github.com/uchr/ToDoInfo.git
-cd ToDoInfo
-go build -o todoinfo cmd/cli/main.go
-```
-
-### 3. Authenticate
-```bash
-./todoinfo login
-```
-
-### 4. Analyze Your Tasks
-```bash
-./todoinfo stats
-```
-
+Analyze your Microsoft ToDo tasks. Track task ages, spot procrastination patterns, get productivity insights — via CLI or Telegram bot.
 
 ## 🎯 Task Rottenness Levels
 
-- 😊 **Fresh** (0-2 days) - Recently created, still fresh
-- 😏 **Ripe** (3-6 days) - Getting older, should be addressed soon  
-- 🥱 **Tired** (7-13 days) - Procrastination setting in
-- 🤢 **Zombie** (14+ days) - Seriously overdue, needs immediate attention
+- 😊 **Fresh** (0-2 days)
+- 😏 **Ripe** (3-6 days)
+- 🥱 **Tired** (7-13 days)
+- 🤢 **Zombie** (14+ days)
 
-## ⚙️ Configuration
+## 🚀 Quick Start
 
-### Option 1: .env File (Recommended)
+### 1. Setup Azure App
+1. [Azure Portal](https://portal.azure.com) → App Registrations → New
+2. Redirect URI: `http://localhost:8080`
+3. Grant `Tasks.ReadWrite` and `User.Read` permissions
+4. Note the Application (client) ID
+
+### 2. Install
 ```bash
-# Create .env file in project root
-echo "AZURE_CLIENT_ID=your_azure_client_id" > .env
-./todoinfo stats
-```
-
-### Option 2: Command Line Flag
-```bash
-./todoinfo stats --client-id YOUR_AZURE_CLIENT_ID
-```
-
-### Option 3: Environment Variable
-```bash
-export AZURE_CLIENT_ID=your_azure_client_id
-./todoinfo stats
-```
-
-### Option 4: Config File
-Create `~/.todoinfo.yaml`:
-```yaml
-client-id: your_azure_client_id
-```
-
-## 🛠️ Development
-
-### Setup Azure App Registration
-1. Go to [Azure Portal](https://portal.azure.com) → App Registrations
-2. Create new registration with redirect URI: `http://localhost:8080`
-3. Note the Application (client) ID
-4. Grant `Tasks.ReadWrite` and `User.Read` permissions
-
-### Build
-```bash
+git clone https://github.com/uchr/ToDoInfo.git
+cd ToDoInfo
+echo "AZURE_CLIENT_ID=your_client_id" > .env
 go build -o todoinfo cmd/cli/main.go
 ```
 
-### Test
+### 3. Use
 ```bash
+./todoinfo login           # Authenticate via browser
+./todoinfo stats           # Fetch and display task stats
+./todoinfo stats --offline # Use stored data (no API call)
+./todoinfo logout          # Clear credentials
+```
+
+## 🤖 Telegram Bot
+
+Long-running bot with periodic data collection, daily summaries, and on-demand queries.
+
+```bash
+./todoinfo bot --telegram-token TOKEN --telegram-chat-id CHAT_ID
+```
+
+Bot commands: `/login`, `/stats`, `/zombies`, `/oldest`, `/chart`, `/refresh`
+
+## ⚙️ Configuration
+
+`AZURE_CLIENT_ID` can be provided via `.env` file, `--client-id` flag, environment variable, or `~/.todoinfo.yaml`.
+
+## 🚢 Deploy to Coolify
+
+1. Create a new service from **Docker Compose**, point to your repo
+2. Set environment variables:
+   ```
+   AZURE_CLIENT_ID=your_azure_client_id
+   TELEGRAM_BOT_TOKEN=your_bot_token
+   TELEGRAM_CHAT_ID=your_chat_id
+   DAILY_SUMMARY_TIME=09:00
+   ```
+3. Deploy — volumes for auth cache and data are handled automatically
+4. Send `/login` to the bot to authenticate via device code
+
+## 🛠️ Development
+
+```bash
+go build -o todoinfo cmd/cli/main.go
 go test ./...
 ```

@@ -1,0 +1,17 @@
+services:
+  todoinfo-bot:
+    build: .
+    env_file: .env
+    volumes:
+      - auth-cache:/root/.azure-cli-cache
+      - data:/root/.todoinfo/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/todoinfo", "--help"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  auth-cache:
+  data:
