@@ -59,12 +59,12 @@ func (b *Bot) Run(ctx context.Context) error {
 	b.tgBot = tgBot
 
 	// Register command handlers
-	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "/stats", bot.MatchTypeCommand, b.handleStats)
-	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "/zombies", bot.MatchTypeCommand, b.handleZombies)
-	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "/oldest", bot.MatchTypeCommand, b.handleOldest)
-	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "/chart", bot.MatchTypeCommand, b.handleChart)
-	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "/login", bot.MatchTypeCommand, b.handleLogin)
-	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "/refresh", bot.MatchTypeCommand, b.handleRefresh)
+	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "stats", bot.MatchTypeCommand, b.handleStats)
+	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "zombies", bot.MatchTypeCommand, b.handleZombies)
+	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "oldest", bot.MatchTypeCommand, b.handleOldest)
+	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "chart", bot.MatchTypeCommand, b.handleChart)
+	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "login", bot.MatchTypeCommand, b.handleLogin)
+	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "refresh", bot.MatchTypeCommand, b.handleRefresh)
 
 	// Start daily summary scheduler
 	go b.dailyScheduler(ctx)
