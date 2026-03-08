@@ -1,6 +1,6 @@
 services:
   todoinfo-bot:
-    build: .
+    image: ghcr.io/uchr/todoinfo:latest
     env_file: .env
     volumes:
       - auth-cache:/root/.azure-cli-cache
