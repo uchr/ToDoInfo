@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -128,13 +126,12 @@ func runStats(cmd *cobra.Command, args []string) error {
 
 // loadLatestSnapshot loads the most recent stored statistics snapshot
 func loadLatestSnapshot(ctx context.Context) (*storage.StatsSnapshot, error) {
-	homeDir, err := os.UserHomeDir()
+	dbPath, err := storage.DefaultDBPath()
 	if err != nil {
-		return nil, fmt.Errorf("cannot get home directory: %w", err)
+		return nil, err
 	}
 
-	dataDir := filepath.Join(homeDir, ".todoinfo", "data")
-	store, err := storage.NewJSONStorage(dataDir)
+	store, err := storage.NewSQLiteStorage(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot access data directory: %w", err)
 	}
@@ -142,10 +139,6 @@ func loadLatestSnapshot(ctx context.Context) (*storage.StatsSnapshot, error) {
 
 	snapshot, err := store.GetLatest(ctx)
 	if err != nil {
-		// Check if it's a JSON parsing error due to task data format incompatibility
-		if strings.Contains(err.Error(), "unmarshal") || strings.Contains(err.Error(), "cannot unmarshal") {
-			return nil, fmt.Errorf("stored data format is incompatible - run 'todoinfo stats' with authentication to generate new data")
-		}
 		return nil, fmt.Errorf("no stored data available - run 'todoinfo stats' with authentication first to generate data: %w", err)
 	}
 
@@ -399,16 +392,13 @@ func truncateString(s string, maxLen int) string {
 
 // storeStatistics stores current statistics to persistent storage
 func storeStatistics(ctx context.Context, metrics *todometrics.Metrics, tasks []todo.TaskList) error {
-	// Create data directory in user's home directory
-	homeDir, err := os.UserHomeDir()
+	dbPath, err := storage.DefaultDBPath()
 	if err != nil {
 		return fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
-	dataDir := filepath.Join(homeDir, ".todoinfo", "data")
-
 	// Create storage
-	store, err := storage.NewJSONStorage(dataDir)
+	store, err := storage.NewSQLiteStorage(dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to create storage: %w", err)
 	}
@@ -431,8 +421,7 @@ func storeStatistics(ctx context.Context, metrics *todometrics.Metrics, tasks []
 			TaskCount: len(allTasks),
 		},
 		ListAges:  metrics.GetListAges(),
-		TaskCount: len(allTasks),
-		TaskLists: tasks, // Store full task data
+		TaskLists: tasks,
 	}
 
 	return store.Store(ctx, snapshot)
@@ -440,17 +429,14 @@ func storeStatistics(ctx context.Context, metrics *todometrics.Metrics, tasks []
 
 // displayHistoricalGraphs displays the historical graphs at the bottom
 func displayHistoricalGraphs(ctx context.Context) {
-	// Create data directory path
-	homeDir, err := os.UserHomeDir()
+	dbPath, err := storage.DefaultDBPath()
 	if err != nil {
 		fmt.Println(warningStyle.Render("⚠ Cannot get home directory for historical data"))
 		return
 	}
 
-	dataDir := filepath.Join(homeDir, ".todoinfo", "data")
-
 	// Create storage
-	store, err := storage.NewJSONStorage(dataDir)
+	store, err := storage.NewSQLiteStorage(dbPath)
 	if err != nil {
 		fmt.Println(warningStyle.Render("⚠ Cannot access historical data storage"))
 		return

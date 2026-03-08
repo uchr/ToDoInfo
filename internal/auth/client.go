@@ -76,6 +76,10 @@ func (ac *AuthClient) IsAuthenticated(ctx context.Context, logger *slog.Logger) 
 	return err == nil
 }
 
+// HasCredential reports whether Authenticate has completed successfully.
+// Unlike IsAuthenticated, this never triggers an interactive auth flow.
+func (ac *AuthClient) HasCredential() bool { return ac.credential != nil }
+
 // GetGraphClient returns the Graph SDK client (Authenticate once first).
 func (ac *AuthClient) GetGraphClient() *msgraphsdk.GraphServiceClient { return ac.graphClient }
 
@@ -103,6 +107,69 @@ func (ac *AuthClient) Logout(_ context.Context, _ *slog.Logger) error {
 // buildCredential reuses a stored AuthenticationRecord if present;
 // otherwise it runs the interactive flow once and persists the record.
 func (ac *AuthClient) buildCredential(ctx context.Context, logger *slog.Logger) (azcore.TokenCredential, error) {
+	if ac.config.Headless {
+		return ac.buildDeviceCodeCredential(ctx, logger)
+	}
+	return ac.buildBrowserCredential(ctx, logger)
+}
+
+// buildDeviceCodeCredential uses the Device Code Flow for headless environments.
+func (ac *AuthClient) buildDeviceCodeCredential(ctx context.Context, logger *slog.Logger) (azcore.TokenCredential, error) {
+	// Use file-based token cache (works in Docker without OS keychain)
+	cacheDir := filepath.Dir(ac.recordPath)
+
+	var record azidentity.AuthenticationRecord
+	if data, err := os.ReadFile(ac.recordPath); err == nil {
+		if uErr := json.Unmarshal(data, &record); uErr != nil {
+			logger.WarnContext(ctx, "auth record corrupt — starting fresh", slog.Any("error", uErr))
+		}
+	}
+
+	opts := &azidentity.DeviceCodeCredentialOptions{
+		TenantID:             ac.config.TenantID,
+		ClientID:             ac.config.ClientID,
+		AuthenticationRecord: record,
+		UserPrompt: func(ctx context.Context, msg azidentity.DeviceCodeMessage) error {
+			if ac.config.DeviceCodeCallback != nil {
+				ac.config.DeviceCodeCallback(ctx, msg.Message)
+			} else {
+				logger.Info("device code", slog.String("message", msg.Message))
+			}
+			return nil
+		},
+	}
+
+	// Try file-based cache for Docker/headless environments
+	pcache, err := cache.New(&cache.Options{Name: filepath.Join(cacheDir, "token_cache")})
+	if err != nil {
+		logger.WarnContext(ctx, "file-based cache unavailable, trying platform cache", slog.Any("error", err))
+		pcache, err = cache.New(nil)
+		if err != nil {
+			return nil, fmt.Errorf("open persistent cache: %w", err)
+		}
+	}
+	opts.Cache = pcache
+
+	cred, err := azidentity.NewDeviceCodeCredential(opts)
+	if err != nil {
+		return nil, fmt.Errorf("new device code credential: %w", err)
+	}
+
+	if record.Username == "" {
+		logger.DebugContext(ctx, "no stored auth record — starting device code flow")
+		newRec, err := cred.Authenticate(ctx, &policy.TokenRequestOptions{Scopes: ac.config.Scopes})
+		if err != nil {
+			return nil, err
+		}
+		if data, err := json.Marshal(newRec); err == nil {
+			_ = os.WriteFile(ac.recordPath, data, 0600)
+		}
+	}
+	return cred, nil
+}
+
+// buildBrowserCredential uses the Interactive Browser Flow for desktop environments.
+func (ac *AuthClient) buildBrowserCredential(ctx context.Context, logger *slog.Logger) (azcore.TokenCredential, error) {
 	// 1. open the encrypted cross-platform token cache
 	pcache, err := cache.New(nil)
 	if err != nil {
@@ -165,7 +232,7 @@ func validateConfig(cfg *Config) error {
 		return fmt.Errorf("client ID required")
 	case cfg.TenantID == "":
 		return fmt.Errorf("tenant ID required")
-	case cfg.Port <= 0:
+	case !cfg.Headless && cfg.Port <= 0:
 		return fmt.Errorf("port must be > 0")
 	case len(cfg.Scopes) == 0:
 		return fmt.Errorf("at least one scope required")

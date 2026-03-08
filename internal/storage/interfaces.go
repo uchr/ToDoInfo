@@ -2,20 +2,30 @@ package storage
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/uchr/ToDoInfo/internal/todo"
 	"github.com/uchr/ToDoInfo/internal/todometrics"
 )
 
+// DefaultDBPath returns the default SQLite database path (~/.todoinfo/data/stats.db).
+func DefaultDBPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot get home directory: %w", err)
+	}
+	return filepath.Join(home, ".todoinfo", "data", "stats.db"), nil
+}
+
 // StatsSnapshot represents a point-in-time statistics snapshot
 type StatsSnapshot struct {
 	Timestamp   time.Time            `json:"timestamp"`
 	GlobalStats GlobalStats          `json:"global_stats"`
 	ListAges    todometrics.ListAges `json:"list_ages"`
-	TaskCount   int                  `json:"task_count"`
-	// New field for full task data (optional for backward compatibility)
-	TaskLists []todo.TaskList `json:"task_lists,omitempty"`
+	TaskLists   []todo.TaskList      `json:"task_lists,omitempty"`
 }
 
 // GlobalStats represents global statistics

@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
+	"os/signal"
+	"syscall"
 
 	"github.com/uchr/ToDoInfo/internal/cli"
 )
 
 func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	if err := cli.Execute(ctx); err != nil {
