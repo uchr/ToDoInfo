@@ -5,6 +5,8 @@ services:
     volumes:
       - auth-cache:/root/.azure-cli-cache
       - data:/root/.todoinfo/data
+    security_opt:
+      - seccomp:unconfined
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "/app/todoinfo", "--help"]
