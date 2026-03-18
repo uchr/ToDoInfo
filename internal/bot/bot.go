@@ -553,13 +553,38 @@ func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 		allData = append(allData, groupSeries[i])
 	}
 
-	// Apply log10 transformation for logarithmic Y-axis
+	// Apply log10 transformation for logarithmic Y-axis.
+	// Find global min/max for axis range before transforming.
+	var globalMin, globalMax float64
+	globalMin = math.MaxFloat64
+	for _, series := range allData {
+		for _, v := range series {
+			if v > 0 {
+				if v < globalMin {
+					globalMin = v
+				}
+				if v > globalMax {
+					globalMax = v
+				}
+			}
+		}
+	}
+	if globalMin == math.MaxFloat64 {
+		globalMin = 1
+	}
+	// Axis bounds at whole powers of 10
+	logMin := math.Floor(math.Log10(globalMin))
+	logMax := math.Ceil(math.Log10(globalMax))
+	if logMax <= logMin {
+		logMax = logMin + 1
+	}
+
 	for i := range allData {
 		for j := range allData[i] {
 			if allData[i][j] > 0 {
 				allData[i][j] = math.Log10(allData[i][j])
 			} else {
-				allData[i][j] = 0
+				allData[i][j] = logMin // map zero to axis bottom
 			}
 		}
 	}
@@ -573,10 +598,14 @@ func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 	}
 	opt.YAxis = []charts.YAxisOption{
 		{
+			Min:        charts.Ptr(logMin),
+			Max:        charts.Ptr(logMax),
+			LabelCount: int(logMax-logMin) + 1,
+			Unit:       1, // one tick per power of 10
 			ValueFormatter: func(v float64) string {
 				original := math.Pow(10, v)
 				if original >= 1000 {
-					return fmt.Sprintf("%.1fk", original/1000)
+					return fmt.Sprintf("%.0fk", original/1000)
 				}
 				return fmt.Sprintf("%.0f", original)
 			},
