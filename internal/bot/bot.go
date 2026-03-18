@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -322,6 +323,47 @@ func (b *Bot) sendDailySummary(ctx context.Context) {
 
 	text := "<b>Daily Summary</b>\n\n" + b.formatStats(data)
 	b.SendMessage(ctx, text)
+	b.sendDailyCharts(ctx, data)
+}
+
+func (b *Bot) sendDailyCharts(ctx context.Context, data *service.StatsData) {
+	if b.tgBot == nil {
+		return
+	}
+
+	radarPNG, err := b.renderRadarChart(data)
+	if err != nil {
+		b.logger.Error("daily radar chart render failed", slog.Any("error", err))
+	} else {
+		_, err = b.tgBot.SendPhoto(ctx, &bot.SendPhotoParams{
+			ChatID: b.config.ChatID,
+			Photo: &models.InputFileUpload{
+				Filename: "tasks_radar.png",
+				Data:     bytes.NewReader(radarPNG),
+			},
+			Caption: fmt.Sprintf("Task distribution by project (%s)", data.FetchedAt.Format("2006-01-02 15:04")),
+		})
+		if err != nil {
+			b.logger.Error("failed to send daily radar chart", slog.Any("error", err))
+		}
+	}
+
+	historyPNG, err := b.renderHistoryChart(ctx)
+	if err != nil {
+		b.logger.Warn("daily history chart render failed", slog.Any("error", err))
+		return
+	}
+	_, err = b.tgBot.SendPhoto(ctx, &bot.SendPhotoParams{
+		ChatID: b.config.ChatID,
+		Photo: &models.InputFileUpload{
+			Filename: "tasks_history.png",
+			Data:     bytes.NewReader(historyPNG),
+		},
+		Caption: "Total age over time (per project)",
+	})
+	if err != nil {
+		b.logger.Error("failed to send daily history chart", slog.Any("error", err))
+	}
 }
 
 // formatStats produces a text summary from StatsData.
@@ -511,12 +553,34 @@ func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 		allData = append(allData, groupSeries[i])
 	}
 
+	// Apply log10 transformation for logarithmic Y-axis
+	for i := range allData {
+		for j := range allData[i] {
+			if allData[i][j] > 0 {
+				allData[i][j] = math.Log10(allData[i][j])
+			} else {
+				allData[i][j] = 0
+			}
+		}
+	}
+
 	opt := charts.NewLineChartOptionWithData(allData)
 	opt.Legend = charts.LegendOption{
 		SeriesNames: seriesNames,
 	}
 	opt.XAxis = charts.XAxisOption{
 		Labels: labels,
+	}
+	opt.YAxis = []charts.YAxisOption{
+		{
+			ValueFormatter: func(v float64) string {
+				original := math.Pow(10, v)
+				if original >= 1000 {
+					return fmt.Sprintf("%.1fk", original/1000)
+				}
+				return fmt.Sprintf("%.0f", original)
+			},
+		},
 	}
 
 	p := charts.NewPainter(charts.PainterOptions{
