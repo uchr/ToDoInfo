@@ -52,7 +52,7 @@ func (ac *AuthClient) Authenticate(ctx context.Context, logger *slog.Logger) err
 		return nil
 	}
 
-	cred, err := ac.buildCredential(ctx, logger)
+	cred, err := ac.buildCredential(ctx, logger, false)
 	if err != nil {
 		return fmt.Errorf("build credential: %w", err)
 	}
@@ -80,6 +80,24 @@ func (ac *AuthClient) IsAuthenticated(ctx context.Context, logger *slog.Logger) 
 // Unlike IsAuthenticated, this never triggers an interactive auth flow.
 func (ac *AuthClient) HasCredential() bool { return ac.credential != nil }
 
+// TryNonInteractiveAuth attempts to restore a credential from the persisted
+// auth record and token cache without triggering any interactive authentication.
+// Returns true if credentials were successfully restored.
+func (ac *AuthClient) TryNonInteractiveAuth(ctx context.Context, logger *slog.Logger) bool {
+	if ac.credential != nil {
+		return true
+	}
+	cred, err := ac.buildCredential(ctx, logger, true)
+	if err != nil {
+		return false
+	}
+	if _, err = cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: ac.config.Scopes}); err != nil {
+		return false
+	}
+	ac.credential = cred
+	return ac.initializeGraphClient() == nil
+}
+
 // GetGraphClient returns the Graph SDK client (Authenticate once first).
 func (ac *AuthClient) GetGraphClient() *msgraphsdk.GraphServiceClient { return ac.graphClient }
 
@@ -106,15 +124,15 @@ func (ac *AuthClient) Logout(_ context.Context, _ *slog.Logger) error {
 
 // buildCredential reuses a stored AuthenticationRecord if present;
 // otherwise it runs the interactive flow once and persists the record.
-func (ac *AuthClient) buildCredential(ctx context.Context, logger *slog.Logger) (azcore.TokenCredential, error) {
+func (ac *AuthClient) buildCredential(ctx context.Context, logger *slog.Logger, nonInteractive bool) (azcore.TokenCredential, error) {
 	if ac.config.Headless {
-		return ac.buildDeviceCodeCredential(ctx, logger)
+		return ac.buildDeviceCodeCredential(ctx, logger, nonInteractive)
 	}
 	return ac.buildBrowserCredential(ctx, logger)
 }
 
 // buildDeviceCodeCredential uses the Device Code Flow for headless environments.
-func (ac *AuthClient) buildDeviceCodeCredential(ctx context.Context, logger *slog.Logger) (azcore.TokenCredential, error) {
+func (ac *AuthClient) buildDeviceCodeCredential(ctx context.Context, logger *slog.Logger, nonInteractive bool) (azcore.TokenCredential, error) {
 	// Use file-based token cache (works in Docker without OS keychain)
 	cacheDir := filepath.Dir(ac.recordPath)
 
@@ -125,10 +143,15 @@ func (ac *AuthClient) buildDeviceCodeCredential(ctx context.Context, logger *slo
 		}
 	}
 
+	if nonInteractive && record.Username == "" {
+		return nil, fmt.Errorf("no cached auth record for non-interactive auth")
+	}
+
 	opts := &azidentity.DeviceCodeCredentialOptions{
-		TenantID:             ac.config.TenantID,
-		ClientID:             ac.config.ClientID,
-		AuthenticationRecord: record,
+		TenantID:                       ac.config.TenantID,
+		ClientID:                       ac.config.ClientID,
+		AuthenticationRecord:           record,
+		DisableAutomaticAuthentication: nonInteractive,
 		UserPrompt: func(ctx context.Context, msg azidentity.DeviceCodeMessage) error {
 			if ac.config.DeviceCodeCallback != nil {
 				ac.config.DeviceCodeCallback(ctx, msg.Message)

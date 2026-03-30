@@ -107,6 +107,11 @@ func runBot(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create auth client: %w", err)
 	}
 
+	// Try to restore credentials from cache (no user interaction)
+	if authClient.TryNonInteractiveAuth(ctx, botLogger) {
+		botLogger.Info("restored authentication from cache")
+	}
+
 	collector := service.NewCollector(authClient, botLogger, refreshInterval)
 
 	botCfg := tgbot.BotConfig{
