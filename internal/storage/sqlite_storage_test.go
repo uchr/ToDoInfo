@@ -130,7 +130,10 @@ func TestSQLiteStorage_GetTimeSeriesData(t *testing.T) {
 	s := newTestSQLiteStorage(t)
 	ctx := t.Context()
 
-	now := time.Now().Truncate(time.Second)
+	// Pin to midday UTC so now and now-1h stay on the same UTC calendar day.
+	// The query buckets by date(timestamp), which is UTC, so a test running
+	// within an hour of UTC midnight would otherwise split today's pair.
+	now := time.Now().UTC().Truncate(24 * time.Hour).Add(12 * time.Hour)
 
 	// Two snapshots on the same day with different values
 	s.Store(ctx, StatsSnapshot{
