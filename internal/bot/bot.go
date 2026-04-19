@@ -60,12 +60,15 @@ func (b *Bot) Run(ctx context.Context) error {
 	b.tgBot = tgBot
 
 	// Register command handlers
+	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "summary", bot.MatchTypeCommand, b.handleSummary)
 	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "stats", bot.MatchTypeCommand, b.handleStats)
+	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "chart", bot.MatchTypeCommand, b.handleChart)
 	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "zombies", bot.MatchTypeCommand, b.handleZombies)
 	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "oldest", bot.MatchTypeCommand, b.handleOldest)
-	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "chart", bot.MatchTypeCommand, b.handleChart)
-	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "login", bot.MatchTypeCommand, b.handleLogin)
 	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "refresh", bot.MatchTypeCommand, b.handleRefresh)
+	b.tgBot.RegisterHandler(bot.HandlerTypeMessageText, "login", bot.MatchTypeCommand, b.handleLogin)
+
+	b.registerCommandMenu(ctx)
 
 	// Start daily summary scheduler
 	go b.dailyScheduler(ctx)
@@ -75,6 +78,27 @@ func (b *Bot) Run(ctx context.Context) error {
 	// Start polling (blocks until ctx cancelled)
 	b.tgBot.Start(ctx)
 	return nil
+}
+
+// registerCommandMenu tells Telegram which commands to show in the chat's autocomplete menu.
+// Scoped to the authorized chat so other chats (if any) don't see the menu.
+func (b *Bot) registerCommandMenu(ctx context.Context) {
+	commands := []models.BotCommand{
+		{Command: "summary", Description: "Text summary + radar + history chart"},
+		{Command: "stats", Description: "Text summary only"},
+		{Command: "chart", Description: "Radar + history chart"},
+		{Command: "zombies", Description: "Zombie tasks (14+ days)"},
+		{Command: "oldest", Description: "Oldest task"},
+		{Command: "refresh", Description: "Force refresh from Microsoft Graph"},
+		{Command: "login", Description: "Authenticate with Microsoft"},
+	}
+	_, err := b.tgBot.SetMyCommands(ctx, &bot.SetMyCommandsParams{
+		Commands: commands,
+		Scope:    &models.BotCommandScopeChat{ChatID: b.config.ChatID},
+	})
+	if err != nil {
+		b.logger.Warn("failed to register command menu", slog.Any("error", err))
+	}
 }
 
 // SendMessage sends a text message to the configured chat.
@@ -107,20 +131,23 @@ func (b *Bot) handleStats(ctx context.Context, tg *bot.Bot, update *models.Updat
 		return
 	}
 
+	warning := b.ensureFresh(ctx)
+
 	data := b.collector.GetLatest()
 	if data == nil {
 		b.sendReply(ctx, tg, update, "No data yet. Use /login first, then wait for the first data collection.")
 		return
 	}
 
-	text := b.formatStats(data)
-	b.sendReply(ctx, tg, update, text)
+	b.sendReply(ctx, tg, update, warning+b.formatStats(data))
 }
 
 func (b *Bot) handleZombies(ctx context.Context, tg *bot.Bot, update *models.Update) {
 	if !b.authorizeChat(update) {
 		return
 	}
+
+	warning := b.ensureFresh(ctx)
 
 	data := b.collector.GetLatest()
 	if data == nil {
@@ -136,11 +163,12 @@ func (b *Bot) handleZombies(ctx context.Context, tg *bot.Bot, update *models.Upd
 	}
 
 	if len(zombies) == 0 {
-		b.sendReply(ctx, tg, update, "No zombie tasks! Everything is fresh.")
+		b.sendReply(ctx, tg, update, warning+"No zombie tasks! Everything is fresh.")
 		return
 	}
 
 	var sb strings.Builder
+	sb.WriteString(warning)
 	sb.WriteString(fmt.Sprintf("<b>%s Zombie Tasks (%d)</b>\n\n", todometrics.TaskRottenness(todometrics.ZombieTaskRottenness).String(), len(zombies)))
 	for i, t := range zombies {
 		sb.WriteString(fmt.Sprintf("%d. <b>%s</b>\n   %s | %d days %s\n",
@@ -160,6 +188,8 @@ func (b *Bot) handleOldest(ctx context.Context, tg *bot.Bot, update *models.Upda
 		return
 	}
 
+	warning := b.ensureFresh(ctx)
+
 	data := b.collector.GetLatest()
 	if data == nil {
 		b.sendReply(ctx, tg, update, "No data yet. Use /login first.")
@@ -167,16 +197,17 @@ func (b *Bot) handleOldest(ctx context.Context, tg *bot.Bot, update *models.Upda
 	}
 
 	if data.Champion == nil {
-		b.sendReply(ctx, tg, update, "No tasks found!")
+		b.sendReply(ctx, tg, update, warning+"No tasks found!")
 		return
 	}
 
 	c := data.Champion
 	text := fmt.Sprintf(
-		"<b>Champion Procrastinator</b>\n\n"+
+		"%s<b>Champion Procrastinator</b>\n\n"+
 			"<b>%s</b>\n"+
 			"List: %s\n"+
 			"Age: %d days %s",
+		warning,
 		escapeHTML(c.TaskName),
 		escapeHTML(c.TaskList),
 		c.Age,
@@ -190,19 +221,36 @@ func (b *Bot) handleChart(ctx context.Context, tg *bot.Bot, update *models.Updat
 		return
 	}
 
+	warning := b.ensureFresh(ctx)
+
 	data := b.collector.GetLatest()
 	if data == nil {
 		b.sendReply(ctx, tg, update, "No data yet. Use /login first.")
 		return
 	}
 
-	// Send radar chart
+	if warning != "" {
+		b.sendReply(ctx, tg, update, warning)
+	}
+	b.sendCharts(ctx, update.Message.Chat.ID, data)
+}
+
+// sendCharts renders and sends the radar + history charts to chatID. Used by
+// /chart, /summary, and the daily scheduler. Render failures are surfaced to
+// the user; send failures are only logged (the user already sees or doesn't
+// see the photo — there's nothing actionable to add).
+func (b *Bot) sendCharts(ctx context.Context, chatID int64, data *service.StatsData) {
+	if b.tgBot == nil {
+		return
+	}
+
 	radarPNG, err := b.renderRadarChart(data)
 	if err != nil {
 		b.logger.Error("radar chart render failed", slog.Any("error", err))
+		b.sendTo(ctx, chatID, fmt.Sprintf("❌ Couldn't render radar chart: %s", escapeHTML(err.Error())))
 	} else {
-		_, err = tg.SendPhoto(ctx, &bot.SendPhotoParams{
-			ChatID: update.Message.Chat.ID,
+		_, err = b.tgBot.SendPhoto(ctx, &bot.SendPhotoParams{
+			ChatID: chatID,
 			Photo: &models.InputFileUpload{
 				Filename: "tasks_radar.png",
 				Data:     bytes.NewReader(radarPNG),
@@ -214,14 +262,14 @@ func (b *Bot) handleChart(ctx context.Context, tg *bot.Bot, update *models.Updat
 		}
 	}
 
-	// Send history line chart
 	historyPNG, err := b.renderHistoryChart(ctx)
 	if err != nil {
-		b.logger.Warn("history chart render failed", slog.Any("error", err))
+		b.logger.Error("history chart render failed", slog.Any("error", err))
+		b.sendTo(ctx, chatID, fmt.Sprintf("❌ Couldn't render history chart: %s", escapeHTML(err.Error())))
 		return
 	}
-	_, err = tg.SendPhoto(ctx, &bot.SendPhotoParams{
-		ChatID: update.Message.Chat.ID,
+	_, err = b.tgBot.SendPhoto(ctx, &bot.SendPhotoParams{
+		ChatID: chatID,
 		Photo: &models.InputFileUpload{
 			Filename: "tasks_history.png",
 			Data:     bytes.NewReader(historyPNG),
@@ -230,6 +278,21 @@ func (b *Bot) handleChart(ctx context.Context, tg *bot.Bot, update *models.Updat
 	})
 	if err != nil {
 		b.logger.Error("failed to send history chart", slog.Any("error", err))
+	}
+}
+
+// sendTo sends a plain HTML message to an arbitrary chat ID.
+func (b *Bot) sendTo(ctx context.Context, chatID int64, text string) {
+	if b.tgBot == nil {
+		return
+	}
+	_, err := b.tgBot.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: models.ParseModeHTML,
+	})
+	if err != nil {
+		b.logger.Error("failed to send message", slog.Any("error", err))
 	}
 }
 
@@ -315,55 +378,34 @@ func (b *Bot) nextDailySummary() time.Time {
 	return next
 }
 
+// sendDailySummary fires at the configured daily time. Refreshes data first so
+// the charts aren't stale, then sends the same bundle (text + radar + history)
+// that /summary produces.
 func (b *Bot) sendDailySummary(ctx context.Context) {
-	data := b.collector.GetLatest()
-	if data == nil {
-		return
-	}
-
-	text := "<b>Daily Summary</b>\n\n" + b.formatStats(data)
-	b.SendMessage(ctx, text)
-	b.sendDailyCharts(ctx, data)
+	warning := b.ensureFresh(ctx)
+	b.sendSummary(ctx, b.config.ChatID, warning, "<b>Daily Summary</b>\n\n")
 }
 
-func (b *Bot) sendDailyCharts(ctx context.Context, data *service.StatsData) {
-	if b.tgBot == nil {
+// sendSummary emits the full daily-summary bundle (text + 2 charts) to chatID.
+// prefix is prepended to the text message (e.g. "<b>Daily Summary</b>\n\n");
+// warning is prepended before prefix if non-empty.
+func (b *Bot) sendSummary(ctx context.Context, chatID int64, warning, prefix string) {
+	data := b.collector.GetLatest()
+	if data == nil {
+		b.sendTo(ctx, chatID, warning+"No data yet. Use /login first.")
 		return
 	}
 
-	radarPNG, err := b.renderRadarChart(data)
-	if err != nil {
-		b.logger.Error("daily radar chart render failed", slog.Any("error", err))
-	} else {
-		_, err = b.tgBot.SendPhoto(ctx, &bot.SendPhotoParams{
-			ChatID: b.config.ChatID,
-			Photo: &models.InputFileUpload{
-				Filename: "tasks_radar.png",
-				Data:     bytes.NewReader(radarPNG),
-			},
-			Caption: fmt.Sprintf("Task distribution by project (%s)", data.FetchedAt.Format("2006-01-02 15:04")),
-		})
-		if err != nil {
-			b.logger.Error("failed to send daily radar chart", slog.Any("error", err))
-		}
-	}
+	b.sendTo(ctx, chatID, warning+prefix+b.formatStats(data))
+	b.sendCharts(ctx, chatID, data)
+}
 
-	historyPNG, err := b.renderHistoryChart(ctx)
-	if err != nil {
-		b.logger.Warn("daily history chart render failed", slog.Any("error", err))
+func (b *Bot) handleSummary(ctx context.Context, tg *bot.Bot, update *models.Update) {
+	if !b.authorizeChat(update) {
 		return
 	}
-	_, err = b.tgBot.SendPhoto(ctx, &bot.SendPhotoParams{
-		ChatID: b.config.ChatID,
-		Photo: &models.InputFileUpload{
-			Filename: "tasks_history.png",
-			Data:     bytes.NewReader(historyPNG),
-		},
-		Caption: "Total age over time (per project)",
-	})
-	if err != nil {
-		b.logger.Error("failed to send daily history chart", slog.Any("error", err))
-	}
+	warning := b.ensureFresh(ctx)
+	b.sendSummary(ctx, update.Message.Chat.ID, warning, "")
 }
 
 // formatStats produces a text summary from StatsData.
@@ -644,6 +686,44 @@ func (b *Bot) authorizeChat(update *models.Update) bool {
 		return false
 	}
 	return update.Message.Chat.ID == b.config.ChatID
+}
+
+// freshnessWindow is the cache age beyond which a command will trigger a refresh
+// before serving data. Keeps rapid-fire commands from hammering Microsoft Graph
+// while still feeling current.
+const freshnessWindow = 60 * time.Second
+
+// ensureFresh refreshes the Collector cache if it is older than freshnessWindow.
+// Returns a warning line (already HTML-escaped, newline-terminated) if data is
+// stale because the refresh failed; empty string on success. Callers should
+// prepend the warning to their outgoing message so the user knows data is not
+// current and why.
+func (b *Bot) ensureFresh(ctx context.Context) string {
+	if err := b.collector.EnsureFresh(ctx, freshnessWindow); err != nil {
+		b.logger.Warn("ensureFresh refresh failed", slog.Any("error", err))
+		if isAuthError(err) {
+			return "⚠️ Auth may have expired — use /login to reconnect.\n\n"
+		}
+		data := b.collector.GetLatest()
+		if data != nil {
+			return fmt.Sprintf("⚠️ Data from %s — refresh failed: %s\n\n",
+				data.FetchedAt.Format("15:04"), escapeHTML(err.Error()))
+		}
+		return fmt.Sprintf("⚠️ Refresh failed: %s\n\n", escapeHTML(err.Error()))
+	}
+	return ""
+}
+
+// isAuthError returns true when err looks like a token / credential failure.
+// The auth layer wraps token errors with "get access token:", see collector.go.
+func isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "access token") ||
+		strings.Contains(msg, "authenticate") ||
+		strings.Contains(msg, "credential")
 }
 
 func (b *Bot) sendReply(ctx context.Context, tg *bot.Bot, update *models.Update, text string) {
