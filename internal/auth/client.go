@@ -2,31 +2,38 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
+	extcache "github.com/AzureAD/microsoft-authentication-extensions-for-go/cache"
+	"github.com/AzureAD/microsoft-authentication-extensions-for-go/cache/accessor/file"
+	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/public"
 )
 
 // ---------- public API ----------------------------------------------------
 
-// AuthClient provides Azure authentication and Microsoft Graph access
+// AuthClient provides Azure authentication for Microsoft Graph access.
+//
+// The token cache is an unencrypted JSON file (0600) on disk. This is a
+// deliberate choice: the previous implementation used azidentity's keyring-
+// backed encrypted cache, whose decryption key lives in the Linux kernel
+// keyring and is lost on container shutdown — so refresh tokens could be
+// persisted but never decrypted after a redeploy. Relying on file-system
+// permissions + Docker volume isolation is the same approach MSAL's own
+// headless example uses.
 type AuthClient struct {
-	config      *Config
-	credential  azcore.TokenCredential
-	graphClient *msgraphsdk.GraphServiceClient
+	config *Config
 
-	recordPath string // ~/.<cacheDir>/auth_record.json (tiny non-secret file)
+	client  *public.Client
+	account *public.Account
+
+	cacheDir  string
+	cachePath string
 }
 
-// NewAuthClient constructs a client and prepares the record-file path.
+// NewAuthClient constructs a client and prepares the cache directory.
 func NewAuthClient(cfg *Config) (*AuthClient, error) {
 	if err := validateConfig(cfg); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
@@ -40,210 +47,174 @@ func NewAuthClient(cfg *Config) (*AuthClient, error) {
 		return nil, fmt.Errorf("create cache dir: %w", err)
 	}
 	return &AuthClient{
-		config:     cfg,
-		recordPath: filepath.Join(cacheDir, "auth_record.json"),
+		config:    cfg,
+		cacheDir:  cacheDir,
+		cachePath: filepath.Join(cacheDir, "msal_cache.json"),
 	}, nil
 }
 
-// Authenticate guarantees that a working credential & Graph client exist.
+// Authenticate guarantees that a working account exists, prompting the user
+// only if no cached account is available or silent refresh fails.
 func (ac *AuthClient) Authenticate(ctx context.Context, logger *slog.Logger) error {
-	if ac.credential != nil {
-		// already authenticated in this process
+	if ac.account != nil {
 		return nil
 	}
+	if err := ac.buildClient(); err != nil {
+		return fmt.Errorf("build client: %w", err)
+	}
 
-	cred, err := ac.buildCredential(ctx, logger, false)
+	// First try silent acquisition from any cached account.
+	accounts, err := ac.client.Accounts(ctx)
 	if err != nil {
-		return fmt.Errorf("build credential: %w", err)
+		return fmt.Errorf("read accounts: %w", err)
 	}
-	// quick sanity check: can we get a token?
-	if _, err = cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: ac.config.Scopes}); err != nil {
-		return fmt.Errorf("token test failed: %w", err)
+	if len(accounts) > 0 {
+		if _, err := ac.client.AcquireTokenSilent(ctx, ac.config.Scopes, public.WithSilentAccount(accounts[0])); err == nil {
+			ac.account = &accounts[0]
+			return nil
+		} else {
+			logger.DebugContext(ctx, "silent auth failed, falling back to interactive", slog.Any("error", err))
+		}
 	}
 
-	ac.credential = cred
-	return ac.initializeGraphClient()
+	var result public.AuthResult
+	if ac.config.Headless {
+		dc, err := ac.client.AcquireTokenByDeviceCode(ctx, ac.config.Scopes)
+		if err != nil {
+			return fmt.Errorf("start device code: %w", err)
+		}
+		if ac.config.DeviceCodeCallback != nil {
+			ac.config.DeviceCodeCallback(ctx, dc.Result.Message)
+		} else {
+			logger.InfoContext(ctx, "device code", slog.String("message", dc.Result.Message))
+		}
+		result, err = dc.AuthenticationResult(ctx)
+		if err != nil {
+			return fmt.Errorf("device code result: %w", err)
+		}
+	} else {
+		result, err = ac.client.AcquireTokenInteractive(ctx, ac.config.Scopes,
+			public.WithRedirectURI(fmt.Sprintf("http://localhost:%d", ac.config.Port)),
+		)
+		if err != nil {
+			return fmt.Errorf("interactive auth: %w", err)
+		}
+	}
+	ac.account = &result.Account
+	return nil
 }
 
 // IsAuthenticated tells whether GetAccessToken would succeed without UI.
 func (ac *AuthClient) IsAuthenticated(ctx context.Context, logger *slog.Logger) bool {
-	if ac.credential == nil {
-		if err := ac.Authenticate(ctx, logger); err != nil {
+	if err := ac.buildClient(); err != nil {
+		logger.DebugContext(ctx, "build client failed", slog.Any("error", err))
+		return false
+	}
+	if ac.account == nil {
+		accounts, err := ac.client.Accounts(ctx)
+		if err != nil || len(accounts) == 0 {
 			return false
 		}
+		ac.account = &accounts[0]
 	}
-	_, err := ac.credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: ac.config.Scopes})
+	_, err := ac.client.AcquireTokenSilent(ctx, ac.config.Scopes, public.WithSilentAccount(*ac.account))
 	return err == nil
 }
 
 // HasCredential reports whether Authenticate has completed successfully.
-// Unlike IsAuthenticated, this never triggers an interactive auth flow.
-func (ac *AuthClient) HasCredential() bool { return ac.credential != nil }
+// Unlike IsAuthenticated, this never calls the token endpoint.
+func (ac *AuthClient) HasCredential() bool { return ac.account != nil }
 
-// TryNonInteractiveAuth attempts to restore a credential from the persisted
-// auth record and token cache without triggering any interactive authentication.
-// Returns true if credentials were successfully restored.
+// TryNonInteractiveAuth attempts to restore an account from the persisted token
+// cache and verify it can mint a token. Returns true on success. Failure paths
+// are logged (at info level) so operators can diagnose startup auth problems.
 func (ac *AuthClient) TryNonInteractiveAuth(ctx context.Context, logger *slog.Logger) bool {
-	if ac.credential != nil {
+	if ac.account != nil {
 		return true
 	}
-	cred, err := ac.buildCredential(ctx, logger, true)
+	if err := ac.buildClient(); err != nil {
+		logger.InfoContext(ctx, "non-interactive auth: build client failed", slog.Any("error", err))
+		return false
+	}
+	accounts, err := ac.client.Accounts(ctx)
 	if err != nil {
+		logger.InfoContext(ctx, "non-interactive auth: read accounts failed", slog.Any("error", err))
 		return false
 	}
-	if _, err = cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: ac.config.Scopes}); err != nil {
+	if len(accounts) == 0 {
+		logger.InfoContext(ctx, "non-interactive auth: no cached accounts")
 		return false
 	}
-	ac.credential = cred
-	return ac.initializeGraphClient() == nil
+	if _, err := ac.client.AcquireTokenSilent(ctx, ac.config.Scopes, public.WithSilentAccount(accounts[0])); err != nil {
+		logger.InfoContext(ctx, "non-interactive auth: silent acquire failed", slog.Any("error", err))
+		return false
+	}
+	ac.account = &accounts[0]
+	return true
 }
 
-// GetGraphClient returns the Graph SDK client (Authenticate once first).
-func (ac *AuthClient) GetGraphClient() *msgraphsdk.GraphServiceClient { return ac.graphClient }
-
-// GetAccessToken exposes a raw bearer token for HTTP libraries outside MS Graph.
+// GetAccessToken returns a fresh access token, refreshing silently if the
+// cached one has expired. Returns an error if no account is attached.
 func (ac *AuthClient) GetAccessToken(ctx context.Context) (string, error) {
-	if ac.credential == nil {
+	if ac.client == nil || ac.account == nil {
 		return "", fmt.Errorf("not authenticated")
 	}
-	tok, err := ac.credential.GetToken(ctx, policy.TokenRequestOptions{Scopes: ac.config.Scopes})
+	result, err := ac.client.AcquireTokenSilent(ctx, ac.config.Scopes, public.WithSilentAccount(*ac.account))
 	if err != nil {
-		return "", fmt.Errorf("get token: %w", err)
+		return "", fmt.Errorf("silent acquire: %w", err)
 	}
-	return tok.Token, nil
+	return result.AccessToken, nil
 }
 
-// Logout forgets the browser session by deleting the AuthenticationRecord.
-func (ac *AuthClient) Logout(_ context.Context, _ *slog.Logger) error {
-	ac.credential = nil
-	ac.graphClient = nil
-	return os.Remove(ac.recordPath) // ignore “file not found”
+// Logout signs the account out of MSAL's cache and removes the cache file.
+func (ac *AuthClient) Logout(ctx context.Context, logger *slog.Logger) error {
+	if err := ac.buildClient(); err != nil {
+		// Can't talk to MSAL; just nuke files.
+		ac.account = nil
+		_ = os.Remove(ac.cachePath)
+		_ = os.Remove(ac.cachePath + ".lockfile")
+		return nil
+	}
+	if ac.account != nil {
+		if err := ac.client.RemoveAccount(ctx, *ac.account); err != nil {
+			logger.WarnContext(ctx, "remove account failed", slog.Any("error", err))
+		}
+	} else if accounts, err := ac.client.Accounts(ctx); err == nil {
+		for _, a := range accounts {
+			_ = ac.client.RemoveAccount(ctx, a)
+		}
+	}
+	ac.account = nil
+	_ = os.Remove(ac.cachePath)
+	_ = os.Remove(ac.cachePath + ".lockfile")
+	return nil
 }
 
 // ---------- internal helpers ----------------------------------------------
 
-// buildCredential reuses a stored AuthenticationRecord if present;
-// otherwise it runs the interactive flow once and persists the record.
-func (ac *AuthClient) buildCredential(ctx context.Context, logger *slog.Logger, nonInteractive bool) (azcore.TokenCredential, error) {
-	if ac.config.Headless {
-		return ac.buildDeviceCodeCredential(ctx, logger, nonInteractive)
+// buildClient lazily constructs the MSAL public client with a file-backed
+// unencrypted token cache.
+func (ac *AuthClient) buildClient() error {
+	if ac.client != nil {
+		return nil
 	}
-	return ac.buildBrowserCredential(ctx, logger)
-}
-
-// buildDeviceCodeCredential uses the Device Code Flow for headless environments.
-func (ac *AuthClient) buildDeviceCodeCredential(ctx context.Context, logger *slog.Logger, nonInteractive bool) (azcore.TokenCredential, error) {
-	// Use file-based token cache (works in Docker without OS keychain)
-	cacheDir := filepath.Dir(ac.recordPath)
-
-	var record azidentity.AuthenticationRecord
-	if data, err := os.ReadFile(ac.recordPath); err == nil {
-		if uErr := json.Unmarshal(data, &record); uErr != nil {
-			logger.WarnContext(ctx, "auth record corrupt — starting fresh", slog.Any("error", uErr))
-		}
-	}
-
-	if nonInteractive && record.Username == "" {
-		return nil, fmt.Errorf("no cached auth record for non-interactive auth")
-	}
-
-	opts := &azidentity.DeviceCodeCredentialOptions{
-		TenantID:                       ac.config.TenantID,
-		ClientID:                       ac.config.ClientID,
-		AuthenticationRecord:           record,
-		DisableAutomaticAuthentication: nonInteractive,
-		UserPrompt: func(ctx context.Context, msg azidentity.DeviceCodeMessage) error {
-			if ac.config.DeviceCodeCallback != nil {
-				ac.config.DeviceCodeCallback(ctx, msg.Message)
-			} else {
-				logger.Info("device code", slog.String("message", msg.Message))
-			}
-			return nil
-		},
-	}
-
-	// Try file-based cache for Docker/headless environments
-	pcache, err := cache.New(&cache.Options{Name: filepath.Join(cacheDir, "token_cache")})
+	accessor, err := file.New(ac.cachePath)
 	if err != nil {
-		logger.WarnContext(ctx, "file-based cache unavailable, trying platform cache", slog.Any("error", err))
-		pcache, err = cache.New(nil)
-		if err != nil {
-			return nil, fmt.Errorf("open persistent cache: %w", err)
-		}
+		return fmt.Errorf("open cache accessor: %w", err)
 	}
-	opts.Cache = pcache
-
-	cred, err := azidentity.NewDeviceCodeCredential(opts)
+	cache, err := extcache.New(accessor, ac.cachePath)
 	if err != nil {
-		return nil, fmt.Errorf("new device code credential: %w", err)
+		return fmt.Errorf("create cache: %w", err)
 	}
-
-	if record.Username == "" {
-		logger.DebugContext(ctx, "no stored auth record — starting device code flow")
-		newRec, err := cred.Authenticate(ctx, &policy.TokenRequestOptions{Scopes: ac.config.Scopes})
-		if err != nil {
-			return nil, err
-		}
-		if data, err := json.Marshal(newRec); err == nil {
-			_ = os.WriteFile(ac.recordPath, data, 0600)
-		}
-	}
-	return cred, nil
-}
-
-// buildBrowserCredential uses the Interactive Browser Flow for desktop environments.
-func (ac *AuthClient) buildBrowserCredential(ctx context.Context, logger *slog.Logger) (azcore.TokenCredential, error) {
-	// 1. open the encrypted cross-platform token cache
-	pcache, err := cache.New(nil)
+	authority := fmt.Sprintf("https://login.microsoftonline.com/%s", ac.config.TenantID)
+	client, err := public.New(ac.config.ClientID,
+		public.WithAuthority(authority),
+		public.WithCache(cache),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("open persistent cache: %w", err)
+		return fmt.Errorf("new msal public client: %w", err)
 	}
-
-	// 2. try to load a previously saved record
-	var record azidentity.AuthenticationRecord
-	if data, err := os.ReadFile(ac.recordPath); err == nil {
-		if uErr := json.Unmarshal(data, &record); uErr != nil {
-			logger.WarnContext(ctx, "auth record corrupt — starting fresh", slog.Any("error", uErr))
-		}
-	}
-
-	// 3. build the credential (record may be zero-value = first run)
-	cred, err := azidentity.NewInteractiveBrowserCredential(&azidentity.InteractiveBrowserCredentialOptions{
-		TenantID:             ac.config.TenantID,
-		ClientID:             ac.config.ClientID,
-		RedirectURL:          fmt.Sprintf("http://localhost:%d", ac.config.Port),
-		Cache:                pcache,
-		AuthenticationRecord: record,
-		// DisableAutomaticAuthentication avoids double prompts if silent auth fails
-		DisableAutomaticAuthentication: true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// 4. if the record was empty we must interact once and then persist
-	if record.Username == "" {
-		logger.DebugContext(ctx, "no stored auth record — launching browser")
-		newRec, err := cred.Authenticate(
-			ctx,
-			&policy.TokenRequestOptions{Scopes: ac.config.Scopes},
-		)
-		if err != nil {
-			return nil, err
-		} else if data, err := json.Marshal(newRec); err == nil {
-			_ = os.WriteFile(ac.recordPath, data, 0600)
-		}
-	}
-	return cred, nil
-}
-
-// initializeGraphClient wires up the Microsoft Graph SDK.
-func (ac *AuthClient) initializeGraphClient() error {
-	gc, err := msgraphsdk.NewGraphServiceClientWithCredentials(ac.credential, ac.config.Scopes)
-	if err != nil {
-		return fmt.Errorf("new graph client: %w", err)
-	}
-	ac.graphClient = gc
+	ac.client = &client
 	return nil
 }
 
