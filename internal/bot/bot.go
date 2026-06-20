@@ -6,8 +6,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"maps"
-	"math"
 	"slices"
 	"strings"
 	"time"
@@ -274,7 +272,7 @@ func (b *Bot) sendCharts(ctx context.Context, chatID int64, data *service.StatsD
 			Filename: "tasks_history.png",
 			Data:     bytes.NewReader(historyPNG),
 		},
-		Caption: "Total age over time (per project)",
+		Caption: "Total age over time",
 	})
 	if err != nil {
 		b.logger.Error("failed to send history chart", slog.Any("error", err))
@@ -485,6 +483,9 @@ func (b *Bot) renderRadarChart(data *service.StatsData) ([]byte, error) {
 	seriesData := [][]float64{ageValues, countValues}
 
 	opt := charts.NewRadarChartOptionWithData(seriesData, names, maxValues)
+	// Set the theme on the option (not just the painter) so the dark Grafana
+	// background is actually painted — otherwise the PNG renders on white.
+	opt.Theme = charts.GetTheme(charts.ThemeGrafana)
 	opt.Legend = charts.LegendOption{
 		SeriesNames: []string{
 			fmt.Sprintf("Age (max %d days)", int(maxAge)),
@@ -509,7 +510,8 @@ func (b *Bot) renderRadarChart(data *service.StatsData) ([]byte, error) {
 	return buf, nil
 }
 
-// renderHistoryChart generates a line chart PNG showing total age and per-group age over time.
+// renderHistoryChart generates a bar chart PNG showing total task age over the
+// last 14 days (one bar per day).
 func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 	dbPath, err := storage.DefaultDBPath()
 	if err != nil {
@@ -521,7 +523,7 @@ func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 	}
 	defer store.Close()
 
-	cutoff := time.Now().AddDate(0, 0, -90)
+	cutoff := time.Now().AddDate(0, 0, -14)
 	snapshots, err := store.GetHistory(ctx, cutoff, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("query history: %w", err)
@@ -530,7 +532,9 @@ func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("no history data available")
 	}
 
-	// Group by day, keep latest snapshot per day
+	// Group by day. The bot may store several snapshots per day (on-demand
+	// refresh, /summary, /chart, daily scheduler); collapse each day to a single
+	// bar using the lowest total age recorded that day.
 	type dayData struct {
 		date     string
 		snapshot storage.StatsSnapshot
@@ -539,7 +543,7 @@ func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 	for _, s := range snapshots {
 		key := s.Timestamp.Format("2006-01-02")
 		existing, ok := dailyMap[key]
-		if !ok || s.Timestamp.After(existing.Timestamp) {
+		if !ok || s.GlobalStats.TotalAge < existing.GlobalStats.TotalAge {
 			dailyMap[key] = s
 		}
 	}
@@ -551,105 +555,47 @@ func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 	}
 	slices.SortFunc(days, func(a, b dayData) int { return cmp.Compare(a.date, b.date) })
 
+	// Keep only the most recent 14 days (guards the calendar/time-of-day edge of
+	// the cutoff so there are never more than 14 bars).
+	if len(days) > 14 {
+		days = days[len(days)-14:]
+	}
+
 	if len(days) < 2 {
 		return nil, fmt.Errorf("need at least 2 data points for history chart")
 	}
 
-	// Collect all group names across all snapshots
-	groupSet := make(map[string]bool)
-	for _, d := range days {
-		for _, la := range d.snapshot.ListAges.Ages {
-			groupSet[la.Title] = true
-		}
-	}
-	groups := slices.Sorted(maps.Keys(groupSet))
-
-	// Build series: first is "Total", then one per group
+	// Single series: total task age per day, rendered as bars on a linear axis.
 	labels := make([]string, len(days))
 	totalSeries := make([]float64, len(days))
-	groupSeries := make([][]float64, len(groups))
-	for i := range groups {
-		groupSeries[i] = make([]float64, len(days))
-	}
-
 	for i, d := range days {
 		labels[i] = d.date[5:] // "MM-DD"
 		totalSeries[i] = float64(d.snapshot.GlobalStats.TotalAge)
-
-		ageByTitle := make(map[string]int)
-		for _, la := range d.snapshot.ListAges.Ages {
-			ageByTitle[la.Title] = la.Age
-		}
-		for gi, g := range groups {
-			groupSeries[gi][i] = float64(ageByTitle[g])
-		}
 	}
 
-	// Build data matrix: total + groups
-	seriesNames := make([]string, 0, 1+len(groups))
-	seriesNames = append(seriesNames, "Total")
-	allData := make([][]float64, 0, 1+len(groups))
-	allData = append(allData, totalSeries)
-	for i, g := range groups {
-		seriesNames = append(seriesNames, stripEmojis(g))
-		allData = append(allData, groupSeries[i])
-	}
-
-	// Apply log10 transformation for logarithmic Y-axis.
-	// Find global min/max for axis range before transforming.
-	var globalMin, globalMax float64
-	globalMin = math.MaxFloat64
-	for _, series := range allData {
-		for _, v := range series {
-			if v > 0 {
-				if v < globalMin {
-					globalMin = v
-				}
-				if v > globalMax {
-					globalMax = v
-				}
-			}
-		}
-	}
-	if globalMin == math.MaxFloat64 {
-		globalMin = 1
-	}
-	// Axis bounds at whole powers of 10
-	logMin := math.Floor(math.Log10(globalMin))
-	logMax := math.Ceil(math.Log10(globalMax))
-	if logMax <= logMin {
-		logMax = logMin + 1
-	}
-
-	for i := range allData {
-		for j := range allData[i] {
-			if allData[i][j] > 0 {
-				allData[i][j] = math.Log10(allData[i][j])
-			} else {
-				allData[i][j] = logMin // map zero to axis bottom
-			}
-		}
-	}
-
-	opt := charts.NewLineChartOptionWithData(allData)
+	opt := charts.NewBarChartOptionWithData([][]float64{totalSeries})
+	// Set the theme on the option (not just the painter) so the dark Grafana
+	// background is actually painted — otherwise the PNG renders on white.
+	opt.Theme = charts.GetTheme(charts.ThemeGrafana)
 	opt.Legend = charts.LegendOption{
-		SeriesNames: seriesNames,
+		SeriesNames: []string{"Total"},
 	}
 	opt.XAxis = charts.XAxisOption{
 		Labels: labels,
 	}
 	opt.YAxis = []charts.YAxisOption{
 		{
-			Min:        charts.Ptr(logMin),
-			Max:        charts.Ptr(logMax),
-			LabelCount: int(logMax-logMin) + 1,
-			Unit:       1, // one tick per power of 10
+			// Bars must baseline at zero so height encodes magnitude; a zero
+			// floor also yields round tick steps (avoids duplicate "k" labels).
+			Min: charts.Ptr(0.0),
 			ValueFormatter: func(v float64) string {
-				original := math.Pow(10, v)
-				if original >= 1000 {
-					return fmt.Sprintf("%.0fk", original/1000)
+				if v >= 1000 {
+					// One decimal so sub-1000 axis steps (e.g. 1250, 1500) don't
+					// collapse to duplicate "1k"/"2k" labels; trim a trailing ".0".
+					s := strings.TrimSuffix(fmt.Sprintf("%.1f", v/1000), ".0")
+					return s + "k"
 				}
-				return fmt.Sprintf("%.0f", original)
+				return fmt.Sprintf("%.0f", v)
 			},
 		},
 	}
@@ -659,8 +605,8 @@ func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 		Height: 400,
 	}, charts.PainterThemeOption(charts.GetTheme(charts.ThemeGrafana)))
 
-	if err := p.LineChart(opt); err != nil {
-		return nil, fmt.Errorf("render line chart: %w", err)
+	if err := p.BarChart(opt); err != nil {
+		return nil, fmt.Errorf("render bar chart: %w", err)
 	}
 
 	buf, err := p.Bytes()
