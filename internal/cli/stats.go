@@ -473,7 +473,7 @@ func renderHistoricalCharts(points []storage.TimeSeriesPoint) {
 	labels := make([]string, len(points))
 
 	for i, point := range points {
-		ageData[i] = float64(point.MaxAge)
+		ageData[i] = float64(point.LatestAge)
 		labels[i] = point.Date.Format("01-02")
 	}
 

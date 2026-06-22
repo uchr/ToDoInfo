@@ -510,6 +510,36 @@ func (b *Bot) renderRadarChart(data *service.StatsData) ([]byte, error) {
 	return buf, nil
 }
 
+// dayData is one day's representative snapshot for the history chart.
+type dayData struct {
+	date     string
+	snapshot storage.StatsSnapshot
+}
+
+// collapseHistoryByDay reduces snapshots to one per local calendar day, returned
+// sorted ascending by date. The bot may store several snapshots per day
+// (on-demand refresh, /summary, /chart, daily scheduler); each day is represented
+// by its *latest* snapshot so the chart reflects the most recently fetched data —
+// in particular, the current day's bar shows the data the triggering request just
+// fetched.
+func collapseHistoryByDay(snapshots []storage.StatsSnapshot) []dayData {
+	dailyMap := make(map[string]storage.StatsSnapshot)
+	for _, s := range snapshots {
+		key := s.Timestamp.Format("2006-01-02")
+		existing, ok := dailyMap[key]
+		if !ok || s.Timestamp.After(existing.Timestamp) {
+			dailyMap[key] = s
+		}
+	}
+
+	days := make([]dayData, 0, len(dailyMap))
+	for k, v := range dailyMap {
+		days = append(days, dayData{date: k, snapshot: v})
+	}
+	slices.SortFunc(days, func(a, b dayData) int { return cmp.Compare(a.date, b.date) })
+	return days
+}
+
 // renderHistoryChart generates a bar chart PNG showing total task age over the
 // last 14 days (one bar per day).
 func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
@@ -532,28 +562,8 @@ func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("no history data available")
 	}
 
-	// Group by day. The bot may store several snapshots per day (on-demand
-	// refresh, /summary, /chart, daily scheduler); collapse each day to a single
-	// bar using the lowest total age recorded that day.
-	type dayData struct {
-		date     string
-		snapshot storage.StatsSnapshot
-	}
-	dailyMap := make(map[string]storage.StatsSnapshot)
-	for _, s := range snapshots {
-		key := s.Timestamp.Format("2006-01-02")
-		existing, ok := dailyMap[key]
-		if !ok || s.GlobalStats.TotalAge < existing.GlobalStats.TotalAge {
-			dailyMap[key] = s
-		}
-	}
-
-	// Sort days chronologically
-	days := make([]dayData, 0, len(dailyMap))
-	for k, v := range dailyMap {
-		days = append(days, dayData{date: k, snapshot: v})
-	}
-	slices.SortFunc(days, func(a, b dayData) int { return cmp.Compare(a.date, b.date) })
+	// Collapse each day to a single bar (see collapseHistoryByDay).
+	days := collapseHistoryByDay(snapshots)
 
 	// Keep only the most recent 14 days (guards the calendar/time-of-day edge of
 	// the cutoff so there are never more than 14 bars).
