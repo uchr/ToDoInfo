@@ -34,10 +34,12 @@ type GlobalStats struct {
 	TaskCount int `json:"task_count"`
 }
 
-// TimeSeriesPoint represents a data point in time series
+// TimeSeriesPoint represents a data point in time series. Each point is the
+// latest snapshot of its day (see GetTimeSeriesData), matching the bot's history
+// chart so the two never disagree on a day's value.
 type TimeSeriesPoint struct {
 	Date      time.Time `json:"date"`
-	MaxAge    int       `json:"max_age"`
+	LatestAge int       `json:"latest_age"`
 	TaskCount int       `json:"task_count"`
 }
 

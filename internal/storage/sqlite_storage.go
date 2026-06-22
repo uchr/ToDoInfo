@@ -165,12 +165,16 @@ func (s *SQLiteStorage) GetHistory(ctx context.Context, from, to time.Time) ([]S
 	return snapshots, rows.Err()
 }
 
-// GetTimeSeriesData retrieves time series data for graphing.
+// GetTimeSeriesData retrieves time series data for graphing: one point per day,
+// carrying the values of that day's latest snapshot. The MAX(timestamp) aggregate
+// triggers SQLite's "bare column" rule — total_age and task_count are taken from
+// the row holding the day's maximum timestamp — so a day with several snapshots
+// reports its most recent one, consistent with the bot's history chart.
 func (s *SQLiteStorage) GetTimeSeriesData(ctx context.Context, days int) ([]TimeSeriesPoint, error) {
 	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format(time.RFC3339)
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT date(timestamp) AS d, MAX(total_age), MAX(task_count)
+		`SELECT date(timestamp) AS d, total_age, task_count, MAX(timestamp)
 		 FROM snapshots
 		 WHERE timestamp > ?
 		 GROUP BY d
@@ -184,9 +188,9 @@ func (s *SQLiteStorage) GetTimeSeriesData(ctx context.Context, days int) ([]Time
 
 	var points []TimeSeriesPoint
 	for rows.Next() {
-		var dateStr string
-		var maxAge, taskCount int
-		if err := rows.Scan(&dateStr, &maxAge, &taskCount); err != nil {
+		var dateStr, latestTS string
+		var latestAge, taskCount int
+		if err := rows.Scan(&dateStr, &latestAge, &taskCount, &latestTS); err != nil {
 			return nil, fmt.Errorf("scan time series row: %w", err)
 		}
 		d, err := time.Parse("2006-01-02", dateStr)
@@ -195,7 +199,7 @@ func (s *SQLiteStorage) GetTimeSeriesData(ctx context.Context, days int) ([]Time
 		}
 		points = append(points, TimeSeriesPoint{
 			Date:      d,
-			MaxAge:    maxAge,
+			LatestAge: latestAge,
 			TaskCount: taskCount,
 		})
 	}

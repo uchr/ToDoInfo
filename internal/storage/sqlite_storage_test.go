@@ -135,16 +135,17 @@ func TestSQLiteStorage_GetTimeSeriesData(t *testing.T) {
 	// within an hour of UTC midnight would otherwise split today's pair.
 	now := time.Now().UTC().Truncate(24 * time.Hour).Add(12 * time.Hour)
 
-	// Two snapshots on the same day with different values
+	// Two snapshots on the same day. The earlier one has the higher total age, so
+	// MAX(total_age) and latest-snapshot disagree — this pins latest-per-day.
 	s.Store(ctx, StatsSnapshot{
 		Timestamp:   now.Add(-1 * time.Hour),
-		GlobalStats: GlobalStats{TotalAge: 50, TaskCount: 3},
-		ListAges:    todometrics.ListAges{TotalAge: 50},
+		GlobalStats: GlobalStats{TotalAge: 100, TaskCount: 5},
+		ListAges:    todometrics.ListAges{TotalAge: 100},
 	})
 	s.Store(ctx, StatsSnapshot{
 		Timestamp:   now,
-		GlobalStats: GlobalStats{TotalAge: 100, TaskCount: 5},
-		ListAges:    todometrics.ListAges{TotalAge: 100},
+		GlobalStats: GlobalStats{TotalAge: 80, TaskCount: 4},
+		ListAges:    todometrics.ListAges{TotalAge: 80},
 	})
 
 	// One snapshot yesterday
@@ -163,15 +164,15 @@ func TestSQLiteStorage_GetTimeSeriesData(t *testing.T) {
 	}
 
 	// First point is yesterday
-	if points[0].MaxAge != 30 {
-		t.Errorf("yesterday MaxAge = %d, want 30", points[0].MaxAge)
+	if points[0].LatestAge != 30 {
+		t.Errorf("yesterday LatestAge = %d, want 30", points[0].LatestAge)
 	}
-	// Second point is today — should be MAX(50, 100) = 100
-	if points[1].MaxAge != 100 {
-		t.Errorf("today MaxAge = %d, want 100", points[1].MaxAge)
+	// Second point is today — latest snapshot (age 80), NOT max(100, 80).
+	if points[1].LatestAge != 80 {
+		t.Errorf("today LatestAge = %d, want 80 (latest snapshot, not max)", points[1].LatestAge)
 	}
-	if points[1].TaskCount != 5 {
-		t.Errorf("today TaskCount = %d, want 5", points[1].TaskCount)
+	if points[1].TaskCount != 4 {
+		t.Errorf("today TaskCount = %d, want 4", points[1].TaskCount)
 	}
 }
 
