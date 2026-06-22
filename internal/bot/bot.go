@@ -516,12 +516,10 @@ type dayData struct {
 	snapshot storage.StatsSnapshot
 }
 
-// collapseHistoryByDay reduces snapshots to one per local calendar day, returned
-// sorted ascending by date. The bot may store several snapshots per day
-// (on-demand refresh, /summary, /chart, daily scheduler); each day is represented
-// by its *latest* snapshot so the chart reflects the most recently fetched data —
-// in particular, the current day's bar shows the data the triggering request just
-// fetched.
+// collapseHistoryByDay reduces snapshots to one per UTC calendar day, sorted
+// ascending by date. The bot may store several snapshots per day (refresh,
+// /summary, /chart, daily scheduler); each day keeps its latest snapshot so the
+// current day's bar reflects the data the triggering request just fetched.
 func collapseHistoryByDay(snapshots []storage.StatsSnapshot) []dayData {
 	dailyMap := make(map[string]storage.StatsSnapshot)
 	for _, s := range snapshots {
@@ -562,7 +560,6 @@ func (b *Bot) renderHistoryChart(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("no history data available")
 	}
 
-	// Collapse each day to a single bar (see collapseHistoryByDay).
 	days := collapseHistoryByDay(snapshots)
 
 	// Keep only the most recent 14 days (guards the calendar/time-of-day edge of
