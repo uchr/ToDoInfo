@@ -51,7 +51,7 @@ type StatsStorage interface {
 	// GetLatest retrieves the most recent statistics snapshot
 	GetLatest(ctx context.Context) (*StatsSnapshot, error)
 
-	// GetHistory retrieves statistics history for a given time period
+	// GetHistory retrieves statistics history for the inclusive period [from, to]
 	GetHistory(ctx context.Context, from, to time.Time) ([]StatsSnapshot, error)
 
 	// GetTimeSeriesData retrieves time series data for graphing
