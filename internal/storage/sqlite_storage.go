@@ -139,12 +139,16 @@ func (s *SQLiteStorage) GetLatest(ctx context.Context) (*StatsSnapshot, error) {
 	return snap, nil
 }
 
-// GetHistory retrieves statistics history for a given time period.
+// GetHistory retrieves statistics history for the inclusive period [from, to].
+// Bounds must be inclusive: timestamps are stored truncated to whole seconds,
+// so a snapshot written in the same second the caller takes time.Now() as the
+// upper bound would be excluded by a strict comparison — that made the bot's
+// history chart render one refresh behind the just-fetched data.
 func (s *SQLiteStorage) GetHistory(ctx context.Context, from, to time.Time) ([]StatsSnapshot, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, timestamp, total_age, task_count, task_lists_json
 		 FROM snapshots
-		 WHERE timestamp > ? AND timestamp < ?
+		 WHERE timestamp >= ? AND timestamp <= ?
 		 ORDER BY timestamp ASC`,
 		from.UTC().Format(time.RFC3339),
 		to.UTC().Format(time.RFC3339),
@@ -176,7 +180,7 @@ func (s *SQLiteStorage) GetTimeSeriesData(ctx context.Context, days int) ([]Time
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT date(timestamp) AS d, total_age, task_count, MAX(timestamp)
 		 FROM snapshots
-		 WHERE timestamp > ?
+		 WHERE timestamp >= ?
 		 GROUP BY d
 		 ORDER BY d ASC`,
 		cutoff,

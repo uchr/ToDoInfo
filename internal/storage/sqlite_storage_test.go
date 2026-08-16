@@ -114,15 +114,47 @@ func TestSQLiteStorage_GetHistory(t *testing.T) {
 		s.Store(ctx, snap)
 	}
 
-	// Query last 3 days (should get 3 snapshots: day 0, 1, 2)
+	// Query last 3 days; bounds are inclusive, so the day-3 snapshot sitting
+	// exactly at `from` is included too (days 0, 1, 2, 3).
 	from := now.Add(-3 * 24 * time.Hour)
 	to := now.Add(time.Hour)
 	history, err := s.GetHistory(ctx, from, to)
 	if err != nil {
 		t.Fatalf("GetHistory: %v", err)
 	}
+	if len(history) != 4 {
+		t.Errorf("history count = %d, want 4", len(history))
+	}
+}
+
+// Regression for the /summary stale-chart bug: a snapshot stored in the same
+// wall-clock second as the query's upper bound (timestamps are stored truncated
+// to whole seconds) must be returned, or the history chart renders one refresh
+// behind the just-fetched data.
+func TestSQLiteStorage_GetHistory_IncludesBoundarySnapshots(t *testing.T) {
+	s := newTestSQLiteStorage(t)
+	ctx := t.Context()
+
+	to := time.Now().Truncate(time.Second)
+	from := to.Add(-14 * 24 * time.Hour)
+
+	for _, ts := range []time.Time{from, from.Add(7 * 24 * time.Hour), to} {
+		snap := StatsSnapshot{
+			Timestamp:   ts,
+			GlobalStats: GlobalStats{TotalAge: 100, TaskCount: 1},
+			ListAges:    todometrics.ListAges{TotalAge: 100},
+		}
+		if err := s.Store(ctx, snap); err != nil {
+			t.Fatalf("Store: %v", err)
+		}
+	}
+
+	history, err := s.GetHistory(ctx, from, to)
+	if err != nil {
+		t.Fatalf("GetHistory: %v", err)
+	}
 	if len(history) != 3 {
-		t.Errorf("history count = %d, want 3", len(history))
+		t.Errorf("history count = %d, want 3 (boundary snapshots at from and to must be included)", len(history))
 	}
 }
 
