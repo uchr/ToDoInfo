@@ -126,7 +126,7 @@ Historical data visualization uses **NimbleMarkets ntcharts** for:
 - Beautiful braille-based line charts showing task age trends over time
 - Task count trends with linear scaling for accurate data interpretation
 - Interactive charts with proper axes labels and data range information
-- 90-day historical tracking stored in `~/.todoinfo/data/` as JSON snapshots
+- 90-day historical tracking stored in `~/.todoinfo/data/stats.db` (SQLite); history range queries use inclusive `[from, to]` bounds because timestamps are stored truncated to whole seconds
 
 ### Offline Mode
 
